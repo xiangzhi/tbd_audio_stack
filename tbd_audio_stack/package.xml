@@ -1,0 +1,23 @@
+<package>
+  <name>tbd_audio_stack</name>
+  <version>0.0.1</version>
+  <description>
+    A metapackage for the Audio Stack for Interaction
+  </description>
+  <author>Zhi Tan</author>
+  <maintainer email="zhi.tan@ri.cmu.edu">Zhi Tan</maintainer>
+  <license>MIT</license>
+
+  <url type="website">https://github.com/CMU-TBD/tbd_audio_stack</url>
+    
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <run_depend>tbd_audio_capture</run_depend>
+  <run_depend>tbd_audio_msgs</run_depend>
+  <run_depend>tbd_audio_vad</run_depend>
+  <run_depend>tbd_audio_recognition_deepspeech</run_depend>
+
+  <export>
+    <metapackage/>
+  </export>
+</package>

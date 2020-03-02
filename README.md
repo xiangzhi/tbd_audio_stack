@@ -14,5 +14,5 @@ Currently this is a republish of audio signal from audio_capture with our own me
 ### tbd_audio_vad
 This package is a wrapper for WebRTCVADPy which conducts voice activity detection on the received stamped audio
 
-### tbd_audio_recognition 
+### tbd_audio_recognition_deepspeech 
 This package is a wrapper for Mozilla's open source implementation of [DeepSpeech](https://github.com/mozilla/DeepSpeech). It takes in both the VAD and Stamped audio and publishes a detected utterances.
