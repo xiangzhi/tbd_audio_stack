@@ -61,5 +61,4 @@ jobs:
           source venv/bin/activate
           cd ros_ws
           ls -a -l
-          catkin clean --yes
           catkin build -DPYTHON_VERSION=3
