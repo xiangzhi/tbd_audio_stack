@@ -17,7 +17,7 @@ class RecognitionNode(object):
 
     def __init__(self):
 
-        self._model_dir = rospy.get_param('~model_dir','/home/xiangzht/Data/Models/deepspeech/')
+        self._model_dir = rospy.get_param('~model_dir','/home/prithupareek/sim_ws/src/tbd_audio_stack/tbd_audio_recognition_deepspeech/models/deepspeech-0.6.0-models/')
         self._beam_width = rospy.get_param('~beam_width', 500)
         self._lm_alpha = rospy.get_param('~lm_alpha', 0.75)
         self._lm_beta = rospy.get_param('~lm_beta', 1.85)

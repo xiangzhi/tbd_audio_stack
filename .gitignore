@@ -52,3 +52,5 @@ CATKIN_IGNORE
 
 .vscode/
 
+# models folder
+/tbd_audio_recognition_deepspeech/models
