@@ -17,17 +17,17 @@ class RecognitionNode(object):
 
     def __init__(self):
 
-        self._model_dir = rospy.get_param('~model_dir','/home/prithupareek/sim_ws/src/tbd_audio_stack/tbd_audio_recognition_deepspeech/models/deepspeech-0.6.0-models/')
+        # replace this '/home/prithupareek/sim_ws' with the path to your current catkin workspace
+        self._model_dir = rospy.get_param('~model_dir','/home/prithupareek/sim_ws/src/tbd_audio_stack/tbd_audio_recognition_deepspeech/models/')
         self._beam_width = rospy.get_param('~beam_width', 500)
         self._lm_alpha = rospy.get_param('~lm_alpha', 0.75)
         self._lm_beta = rospy.get_param('~lm_beta', 1.85)
         
-        self._model_path = os.path.join(self._model_dir,'output_graph.pb')
-        self._lm_path = os.path.join(self._model_dir,'lm.binary')
-        self._trie_path = os.path.join(self._model_dir,'trie')
+        self._model_path = os.path.join(self._model_dir,'deepspeech-0.7.4-models.pbmm')
+        self._scorer_path = os.path.join(self._model_dir, 'deepspeech-0.7.4-models.scorer')
 
-        self._deep_speech = deepspeech.Model(self._model_path, self._beam_width)
-        self._deep_speech.enableDecoderWithLM(self._lm_path, self._trie_path, self._lm_alpha, self._lm_beta)
+        self._deep_speech = deepspeech.Model(self._model_path)
+        self._deep_speech.enableExternalScorer(self._scorer_path)
         self._context = self._deep_speech.createStream()
         self._running = False
 
@@ -68,27 +68,28 @@ class RecognitionNode(object):
             # add to buffer
             self._ring_buffer.append((audio.data, vad))
             # add to model since its still speech
-            self._deep_speech.feedAudioContent(self._context, self._resample_audio(audio.data))
+            self._context.feedAudioContent(self._resample_audio(audio.data))
             # if there is more silence, stop
             if len([v for a, v in self._ring_buffer if not v.is_speech]) > (self._silent_ratio * self._ring_buffer.maxlen):
                 # DONE
                 # might want to add this to a seperate thread
                 #print("Running model")
                 #text = self._deep_speech.finishStream(self._context)
-                data = self._deep_speech.finishStreamWithMetadata(self._context)
+                data = self._context.finishStreamWithMetadata().transcripts[0]
                 string_list = []
                 timing_list = []
                 curr_str = ""
                 curr_str_time = 0
-                for item in data.items:
-                    if item.character == " ":
+
+                for token in data.tokens:
+                    if token.text == " ":
                         string_list.append(curr_str)
                         timing_list.append(curr_str_time)
                         curr_str = ""
                     else:
                         if curr_str == "":
-                            curr_str_time = item.timestep
-                        curr_str += item.character
+                            curr_str_time = token.timestep
+                        curr_str += token.text
                 if curr_str != "":
                     string_list.append(curr_str)
                     timing_list.append(curr_str_time)        
@@ -111,7 +112,7 @@ class RecognitionNode(object):
             if len([v for a, v in self._ring_buffer if v.is_speech]) > (self._speak_ratio * self._ring_buffer.maxlen):
                 # this means its possible its speech
                 for a,v in self._ring_buffer:
-                    self._deep_speech.feedAudioContent(self._context, self._resample_audio(a))
+                    self._context.feedAudioContent(self._resample_audio(a))
                 self._running = True
                 # the utterance start time is the first VAD true signal
                 self._utterance_start_header = [v for a, v in self._ring_buffer if v.is_speech].pop().header
