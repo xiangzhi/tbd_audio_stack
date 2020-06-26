@@ -17,8 +17,9 @@ class RecognitionNode(object):
 
     def __init__(self):
 
-        # replace this '/home/prithupareek/sim_ws' with the path to your current catkin workspace
-        self._model_dir = rospy.get_param('~model_dir','/home/prithupareek/sim_ws/src/tbd_audio_stack/tbd_audio_recognition_deepspeech/models/')
+        dirname = os.path.dirname(__file__)
+        modelPath = os.path.join(dirname, '../models/')
+        self._model_dir = rospy.get_param('~model_dir',modelPath)
         self._beam_width = rospy.get_param('~beam_width', 500)
         self._lm_alpha = rospy.get_param('~lm_alpha', 0.75)
         self._lm_beta = rospy.get_param('~lm_beta', 1.85)

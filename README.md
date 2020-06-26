@@ -37,7 +37,7 @@ This package is a wrapper for Mozilla's open source implementation of [DeepSpeec
     ```
 5. Install the following python3 dependencies into the virtual environment:
     ```bash
-    pip install webrtcvad deepspeech==0.7.4
+    pip install webrtcvad deepspeech==0.7.4 rospkg empy alloylib
     ```
 6. Create and navigate to the `src` directory.
    ```bash
@@ -53,15 +53,14 @@ This package is a wrapper for Mozilla's open source implementation of [DeepSpeec
    wget https://github.com/mozilla/DeepSpeech/releases/download/v0.7.4/deepspeech-0.7.4-models.pbmm
    wget https://github.com/mozilla/DeepSpeech/releases/download/v0.7.4/deepspeech-0.7.4-models.scorer
    ```
-9. Open `tbd_audio_stack/tbd_audio_recognition_deepspeech/src/recognition_node.py` and replace `/home/prithupareek/sim_ws` with the path to your current catkin workspace on line 21.
-10. Go back to the workspaces's root directory and build and run your project. Make sure to be in the python3 virtual environment.
+9.  Go back to the workspaces's root directory and build and run your project. Make sure to be in the python3 virtual environment.
     ```bash
     cd ~/<path_to_your_workspace>/catkin_ws
     catkin build -DPYTHON_VERSION=3
     source devel/setup.bash
     roslaunch tbd_audio_recognition_deepspeech run_recognition.launch
     ```
-    Every thing sould run correctly, and you should be able to see the text output by running `rostopic echo /utterance` and speaking into your computers microphone.
+10. Every thing sould run correctly, and you should be able to see the text output by running `rostopic echo /utterance` and speaking into your computers microphone.
 
 
 
