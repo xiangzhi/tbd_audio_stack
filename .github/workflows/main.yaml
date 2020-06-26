@@ -43,6 +43,7 @@ jobs:
       - name: Install Python Dependencies
         run: |
           sudo apt-get install python3-venv
+          sudo apt-get install python-catkin-tools
           python3 -m venv venv
           source venv/bin/activate
           pip install webrtcvad deepspeech==0.7.4 rospkg empy alloylib
