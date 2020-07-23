@@ -5,10 +5,16 @@
 
 
 	<node name="audio_converter" pkg="tbd_audio_capture" type="converter_node.py" output="$(arg output)"/>
-	<node name="audio_vad" pkg="tbd_audio_vad" type="vad_node.py" output="$(arg output)"/>
+	<node name="audio_vad" pkg="tbd_audio_vad" type="vad_node.py" output="$(arg output)">
+		<remap from="vad" to="vad_in"/>
+	</node>
+	<node name="vad_signal_merger" pkg="tbd_audio_speech_signal_relay" type="speech_signal_vad_merger_node.py" output="$(arg output)">
+		<remap from="vad" to="vad_in"/>
+	</node>
 	<node name="audio_recognition" pkg="tbd_audio_recognition_deepspeech" type="recognition_node.py" output="$(arg output)">
+		<remap from="vad" to="vad_out"/>
 		<param name="model_path" value="$(arg model_path)" />
 		<param name="scorer_path" value="$(arg scorer_path)" />
-	</node>
-    <include file="$(find audio_capture)/launch/capture_wave.launch" />
+	</node>    
+	<include file="$(find audio_capture)/launch/capture_wave.launch" />
 </launch>
