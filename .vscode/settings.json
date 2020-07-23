@@ -1,8 +1,0 @@
-{
-    "ros.distro": "melodic",
-    "python.autoComplete.extraPaths": [
-        "/home/xiangzht/Dev/pub_ws/pub_dep/devel/lib/python2.7/dist-packages",
-        "/home/xiangzht/Dev/pub_ws/pub_dep/devel/lib/python2.7/dist-packages",
-        "/opt/ros/melodic/lib/python2.7/dist-packages"
-    ]
-}

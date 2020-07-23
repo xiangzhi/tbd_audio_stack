@@ -1,0 +1,64 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Build
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on:
+  push:
+    branches: [ master, prithu-dev ]
+  pull_request:
+    branches: [ master ]
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    strategy:
+      matrix:
+        ros_distributions:
+          - melodic
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      - name: Setup ROS
+        uses: ros-tooling/setup-ros@0.0.20
+        with: 
+          required-ros-distributions: melodic
+          
+      - name: Install ROS Dependencies
+        run: |
+          sudo apt install ros-melodic-audio-common*
+          sudo apt install ros-melodic-audio-capture* 
+      
+      - name: Create Workspace
+        run: "mkdir ros_ws -p ros_ws/src"
+
+      - uses: actions/checkout@v2
+        with:
+            path: ros_ws/src/tbd_audio_stack
+
+      - name: Install Python Dependencies
+        run: |
+          sudo apt-get install python3-venv
+          sudo apt-get install python-catkin-tools
+          python3 -m venv venv
+          source venv/bin/activate
+          pip install webrtcvad deepspeech==0.7.4 rospkg empy alloylib
+
+      - name: Install Deepspeech Model Files
+        run: |
+          cd src/tbd_audio_stack/tbd_audio_recognition && mkdir models && cd models
+          wget https://github.com/mozilla/DeepSpeech/releases/download/v0.7.4/deepspeech-0.7.4-models.pbmm
+          wget https://github.com/mozilla/DeepSpeech/releases/download/v0.7.4/deepspeech-0.7.4-models.scorer
+          cd ../../../../
+
+      - name: Catkin Build
+        run: |
+          source /opt/ros/${{matrix.ros_distributions}}/setup.bash
+          source venv/bin/activate
+          cd ros_ws
+          ls -a -l
+          catkin build -DPYTHON_VERSION=3
