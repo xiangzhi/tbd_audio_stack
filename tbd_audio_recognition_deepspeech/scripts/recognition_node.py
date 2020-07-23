@@ -3,7 +3,7 @@
 import collections
 import os
 import threading
-from os.path import join
+import typing
 
 import deepspeech
 import numpy as np
@@ -17,18 +17,19 @@ class RecognitionNode(object):
 
     def __init__(self):
 
-        self._model_dir = rospy.get_param('~model_dir','/home/xiangzht/Data/Models/deepspeech/')
+        self._model_path = rospy.get_param('~model_path','/home/xiangzht/Data/Models/deepspeech/models.pbmm')
+        self._scorer_path = rospy.get_param('~scorer_path','/home/xiangzht/Data/Models/deepspeech/models.scorer')
         self._beam_width = rospy.get_param('~beam_width', 500)
-        self._lm_alpha = rospy.get_param('~lm_alpha', 0.75)
-        self._lm_beta = rospy.get_param('~lm_beta', 1.85)
+        self._publish_if_empty = rospy.get_param('~publish_if_empty', False)
+        self._lm_alpha = rospy.get_param('~lm_alpha', 0.931289039105002)
+        self._lm_beta = rospy.get_param('~lm_beta', 1.1834137581510284)
         
-        self._model_path = os.path.join(self._model_dir,'output_graph.pb')
-        self._lm_path = os.path.join(self._model_dir,'lm.binary')
-        self._trie_path = os.path.join(self._model_dir,'trie')
+        self._deep_speech = deepspeech.Model(self._model_path)
+        self._deep_speech.enableExternalScorer(self._scorer_path)
+        self._deep_speech.setBeamWidth(self._beam_width)
+        self._deep_speech.setScorerAlphaBeta(self._lm_alpha, self._lm_beta)
 
-        self._deep_speech = deepspeech.Model(self._model_path, self._beam_width)
-        self._deep_speech.enableDecoderWithLM(self._lm_path, self._trie_path, self._lm_alpha, self._lm_beta)
-        self._context = self._deep_speech.createStream()
+        self._stream = self._deep_speech.createStream()
         self._running = False
 
         self._ring_buffer = collections.deque(maxlen=50)
@@ -46,11 +47,7 @@ class RecognitionNode(object):
         ts = message_filters.TimeSynchronizer([audio_sub, vad_sub], 10)
         ts.registerCallback(self._merge_audio)
 
-    """Resample the audio from uint8[]
-    
-    Returns:
-        np.int16 -- [description]
-    """
+
     def _resample_audio(self, ori_data):
         # new data
         new_buffer = np.zeros(int(len(ori_data)/2), dtype=np.int16)
@@ -68,38 +65,46 @@ class RecognitionNode(object):
             # add to buffer
             self._ring_buffer.append((audio.data, vad))
             # add to model since its still speech
-            self._deep_speech.feedAudioContent(self._context, self._resample_audio(audio.data))
+            self._stream.feedAudioContent(self._resample_audio(audio.data))
             # if there is more silence, stop
             if len([v for a, v in self._ring_buffer if not v.is_speech]) > (self._silent_ratio * self._ring_buffer.maxlen):
-                # DONE
-                # might want to add this to a seperate thread
-                #print("Running model")
-                #text = self._deep_speech.finishStream(self._context)
-                data = self._deep_speech.finishStreamWithMetadata(self._context)
-                string_list = []
-                timing_list = []
+                #TODO allow multiple results for comparison.
+                data: deepspeech.Metadata
+                data = self._stream.finishStreamWithMetadata()
+                # Convert data into utterance response
+                candidates: typing.List[deepspeech.CandidateTranscript]
+                candidates = data.transcripts
+                candidate = candidates[0]
                 curr_str = ""
                 curr_str_time = 0
-                for item in data.items:
-                    if item.character == " ":
-                        string_list.append(curr_str)
+                word_list = []
+                timing_list = []
+                for token in candidate.tokens:
+                    # if its an space token, start a new word
+                    if token.text == " ":
+                        word_list.append(curr_str)
                         timing_list.append(curr_str_time)
                         curr_str = ""
                     else:
                         if curr_str == "":
-                            curr_str_time = item.timestep
-                        curr_str += item.character
+                            curr_str_time = token.timestep
+                        curr_str += token.text
                 if curr_str != "":
-                    string_list.append(curr_str)
-                    timing_list.append(curr_str_time)        
-                    
-                self._context = self._deep_speech.createStream()
-                resp = Utterance()
-                resp.header = self._utterance_start_header
-                resp.text = " ".join(string_list)
-                resp.word_list = string_list
-                resp.timing_list = timing_list
-                self._pub.publish(resp)
+                    word_list.append(curr_str)
+                    timing_list.append(curr_str_time)                   
+
+                #copy data & publish
+                if self._publish_if_empty or len(word_list) > 0:
+                    resp = Utterance()
+                    resp.header = self._utterance_start_header
+                    resp.confidence = candidate.confidence
+                    resp.text = " ".join(word_list)
+                    resp.timing_list = timing_list
+                    resp.word_list = word_list
+                    self._pub.publish(resp)
+
+                # Create a new stream for the next set of inputs
+                self._stream = self._deep_speech.createStream()
 
                 self._running = False
                 self._utterance_start_header = None
@@ -111,7 +116,7 @@ class RecognitionNode(object):
             if len([v for a, v in self._ring_buffer if v.is_speech]) > (self._speak_ratio * self._ring_buffer.maxlen):
                 # this means its possible its speech
                 for a,v in self._ring_buffer:
-                    self._deep_speech.feedAudioContent(self._context, self._resample_audio(a))
+                    self._stream.feedAudioContent(self._resample_audio(a))
                 self._running = True
                 # the utterance start time is the first VAD true signal
                 self._utterance_start_header = [v for a, v in self._ring_buffer if v.is_speech].pop().header
