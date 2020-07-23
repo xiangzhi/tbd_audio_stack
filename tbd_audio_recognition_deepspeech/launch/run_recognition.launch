@@ -1,8 +1,7 @@
 <launch>
     <arg name="output" default="screen"/>
-    <arg name="model_path" default="/home/xiangzht/Data/Models/deepspeech/deepspeech-0.7.4-models.pbmm"/>
-    <arg name="scorer_path" default="/home/xiangzht/Data/Models/deepspeech/deepspeech-0.7.4-models.scorer"/>
-
+    <arg name="model_path" default="$(find tbd_audio_recognition_deepspeech)/models/deepspeech-0.7.4-models.pbmm"/>
+    <arg name="scorer_path" default="$(find tbd_audio_recognition_deepspeech)/models/deepspeech-0.7.4-models.scorer"/>
 
 	<node name="audio_converter" pkg="tbd_audio_capture" type="converter_node.py" output="$(arg output)"/>
 	<node name="audio_vad" pkg="tbd_audio_vad" type="vad_node.py" output="$(arg output)"/>
