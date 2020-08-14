@@ -1,5 +1,8 @@
 # Change log
 
+## [0.1.3] - 2020-08-13
+- Update to use DeepSpeech v0.8.1
+
 ## [0.1.2] - 2020-07-23
 - Added `tbd_audio_speech_signal_relay` component that merged in bool signal from any TTS node and ignore speech if bool_signal is true.
 - Added `confidence` to the Utterance message.
