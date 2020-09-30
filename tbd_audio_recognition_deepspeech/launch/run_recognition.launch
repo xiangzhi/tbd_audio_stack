@@ -3,11 +3,12 @@
     <arg name="model_path" default="$(find tbd_audio_recognition_deepspeech)/models/deepspeech-0.8.1-models.pbmm"/>
     <arg name="scorer_path" default="$(find tbd_audio_recognition_deepspeech)/models/deepspeech-0.8.1-models.scorer"/>
 
-	<node name="audio_converter" pkg="tbd_audio_capture" type="converter_node.py" output="$(arg output)"/>
 	<node name="audio_vad" pkg="tbd_audio_vad" type="vad_node.py" output="$(arg output)"/>
 	<node name="audio_recognition" pkg="tbd_audio_recognition_deepspeech" type="recognition_node.py" output="$(arg output)">
 		<param name="model_path" value="$(arg model_path)" />
 		<param name="scorer_path" value="$(arg scorer_path)" />
 	</node>
-    <include file="$(find audio_capture)/launch/capture_wave.launch" />
+    <include file="$(find tbd_audio_capture)/launch/capture.launch">
+		<arg name="output" value="$(arg output)" />
+	</include>
 </launch>

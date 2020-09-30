@@ -15,6 +15,8 @@
 		<remap from="vad" to="vad_out"/>
 		<param name="model_path" value="$(arg model_path)" />
 		<param name="scorer_path" value="$(arg scorer_path)" />
-	</node>    
-	<include file="$(find audio_capture)/launch/capture_wave.launch" />
+	</node> 
+    <include file="$(find tbd_audio_capture)/launch/capture.launch">
+		<arg name="output" value="$(arg output)" />
+	</include>
 </launch>
