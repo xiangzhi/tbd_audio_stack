@@ -1,7 +1,6 @@
-#! /usr/bin/env python3
+#!/usr/bin/env python3
 
 import asyncio
-import aiofile #not sure if this is needed
 import queue
 import collections
 import sys
@@ -13,6 +12,7 @@ from amazon_transcribe.model import TranscriptEvent
 import message_filters
 import rospy
 from tbd_audio_msgs.msg import AudioDataStamped, Utterance, VADStamped
+
 
 class MyEventHandler(TranscriptResultStreamHandler):
     def __init__(self, output_stream):
@@ -29,8 +29,10 @@ class MyEventHandler(TranscriptResultStreamHandler):
                 # print(alt.transcript)
                 hypothesis = alt.transcript
                 pass
-        
-        if hypothesis != None: self.transcript = hypothesis
+
+        if hypothesis != None:
+            self.transcript = hypothesis
+
 
 class RecognitionNode(object):
     def __init__(self):
@@ -44,8 +46,6 @@ class RecognitionNode(object):
         self._speak_ratio = 0.75
         self._utterance_start_header = None
 
-        rospy.loginfo("Amazon Transcribe Started")
-
         # amazon transcribe client
         self._client = TranscribeStreamingClient(region='us-east-1')
 
@@ -53,11 +53,15 @@ class RecognitionNode(object):
         self._audio_chunks = queue.Queue()
 
         self._pub = rospy.Publisher('/utterance', Utterance, queue_size=1)
-        self._audio_sub = message_filters.Subscriber('audioStamped', AudioDataStamped)
+        self._audio_sub = message_filters.Subscriber(
+            'audioStamped', AudioDataStamped)
         self._vad_sub = message_filters.Subscriber('vad', VADStamped)
 
-        self._ts = message_filters.TimeSynchronizer([self._audio_sub, self._vad_sub], 10)
+        self._ts = message_filters.TimeSynchronizer(
+            [self._audio_sub, self._vad_sub], 10)
         self._ts.registerCallback(self._merge_audio)
+
+        rospy.loginfo("Amazon Transcribe Started")
 
         # create the event loop and run the async code
         self._loop = asyncio.new_event_loop()
@@ -70,7 +74,7 @@ class RecognitionNode(object):
         while self._speaking:
             while not self._audio_chunks.empty():
                 await self._stream.input_stream.send_audio_event(audio_chunk=self._audio_chunks.get())
-                asyncio.sleep(0.01) # TODO add condition for speaking
+                asyncio.sleep(0.01)  # TODO add condition for speaking
                 # print(self._audio_chunks.qsize())
         await self._stream.input_stream.end_stream()
         print("Closed Stream", flush=True)
@@ -87,18 +91,19 @@ class RecognitionNode(object):
                     vocabulary_name="tbd-podi"
                 )
                 print("Opened Stream", flush=True)
-                
+
                 # Instantiate our handler and start processing events
                 handler = MyEventHandler(self._stream.output_stream)
 
                 await asyncio.gather(self._write_chunks(), handler.handle_events())
 
                 print(handler.transcript)
-                
+
                 if handler.transcript != None:
                     resp = Utterance()
                     resp.header = self._utterance_start_header
                     resp.text = handler.transcript
+                    resp.end_time = self._utterance_end_time
                     self._pub.publish(resp)
 
                 # don't loop multiple times
@@ -114,7 +119,6 @@ class RecognitionNode(object):
                 print(self._audio_chunks.qsize())
             # print("Done with speech")
 
-
     def _merge_audio(self, audio, vad):
         # print(vad.is_speech)
         # if speaking
@@ -129,6 +133,7 @@ class RecognitionNode(object):
             # if there is more silence, stop
             if len([v for a, v in self._ring_buffer if not v.is_speech]) > (self._silent_ratio * self._ring_buffer.maxlen):
                 self._speaking = False
+                self._utterance_end_time = max([v.header.stamp for a, v in self._ring_buffer if not v.is_speech])
                 self._ring_buffer.clear()
                 print("Stoped Speaking ----------------------------")
 
@@ -149,11 +154,9 @@ class RecognitionNode(object):
                 print("Started Speaking >>>>>>>>>>>>>>>>>>>>>>>>")
 
                 # utterance start time is the first VAD true signal
-                self._utterance_start_header = [v for a, v in self._ring_buffer if v.is_speech].pop().header
+                self._utterance_start_header = [
+                    v for a, v in self._ring_buffer if v.is_speech].pop().header
                 self._ring_buffer.clear()
-
-
-
 
 
 if __name__ == '__main__':
