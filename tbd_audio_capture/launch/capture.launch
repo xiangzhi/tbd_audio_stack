@@ -1,0 +1,5 @@
+<launch>
+    <arg name="output" default="screen"/>
+	<node name="audio_converter" pkg="tbd_audio_capture" type="converter_node.py" output="$(arg output)"/>
+    <include file="$(find audio_capture)/launch/capture_wave.launch" />
+</launch>

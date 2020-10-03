@@ -1,5 +1,8 @@
 # Change log
 
+## [0.1.4] - 2020-09-30
+- **[Added]** launch file to start the audio capture indepdendently.
+
 ## [0.1.3] - 2020-08-13
 - Update to use DeepSpeech v0.8.1
 
