@@ -25,7 +25,7 @@ def main():
         con_pub.publish(msg)
 
     rospy.Subscriber('vad',VADStamped,vad_cb)
-    rospy.Subscriber('agent_signal', Bool, signal_cb)
+    rospy.Subscriber('speak_signal', Bool, signal_cb)
 
     rospy.spin()
 
