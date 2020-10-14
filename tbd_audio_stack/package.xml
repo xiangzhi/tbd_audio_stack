@@ -16,6 +16,8 @@
   <run_depend>tbd_audio_msgs</run_depend>
   <run_depend>tbd_audio_vad</run_depend>
   <run_depend>tbd_audio_recognition_deepspeech</run_depend>
+  <run_depend>tbd_amazon_transcribe</run_depend>
+  <run_depend>tbd_audio_speech_signal_relay</run_depend>
 
   <export>
     <metapackage/>

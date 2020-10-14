@@ -74,7 +74,7 @@ class RecognitionNode(object):
         while self._speaking:
             while not self._audio_chunks.empty():
                 await self._stream.input_stream.send_audio_event(audio_chunk=self._audio_chunks.get())
-                asyncio.sleep(0.01)  # TODO add condition for speaking
+                # asyncio.sleep(0.01)  # TODO add condition for speaking
                 # print(self._audio_chunks.qsize())
         await self._stream.input_stream.end_stream()
         print("Closed Stream", flush=True)
