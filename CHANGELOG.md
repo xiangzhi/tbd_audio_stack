@@ -1,5 +1,11 @@
 # Change log
 
+## [0.2.0] - 2020-10-03
+- **[Merged]** the amazon transcribe wrapper.
+- **[Changed]** use DeepSpeech v0.8.2
+- **[Added]** `Requirement.txt` that saves the version of python packages we are using.
+- **[Added]** Utterance message now tells us the time it ends. `end_time`. Added support for it in both deepspeech + transcribe.
+
 ## [0.1.4] - 2020-09-30
 - **[Added]** launch file to start the audio capture indepdendently.
 

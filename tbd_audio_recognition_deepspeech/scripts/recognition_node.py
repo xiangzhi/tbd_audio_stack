@@ -101,6 +101,8 @@ class RecognitionNode(object):
                     resp.text = " ".join(word_list)
                     resp.timing_list = timing_list
                     resp.word_list = word_list
+                    # calculate the end time. It is the last true VAD in the ROS 
+                    resp.end_time = max([v.header.stamp for a, v in self._ring_buffer if not v.is_speech])
                     self._pub.publish(resp)
 
                 # Create a new stream for the next set of inputs
