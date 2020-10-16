@@ -45,6 +45,7 @@ class RecognitionNode(object):
         self._silent_ratio = 0.75
         self._speak_ratio = 0.75
         self._utterance_start_header = None
+        self._stream = None
 
         # amazon transcribe client
         self._client = TranscribeStreamingClient(region='us-east-1')
@@ -71,16 +72,16 @@ class RecognitionNode(object):
         rospy.loginfo("Amazon Transcribe Stopped")
 
     async def _write_chunks(self):
+        # keep writing while there is still speech
         while self._speaking:
-            while not self._audio_chunks.empty():
+            while not self._audio_chunks.empty() and self._stream is not None:
                 await self._stream.input_stream.send_audio_event(audio_chunk=self._audio_chunks.get())
-                # asyncio.sleep(0.01)  # TODO add condition for speaking
-                # print(self._audio_chunks.qsize())
+
         await self._stream.input_stream.end_stream()
-        print("Closed Stream", flush=True)
+        rospy.logdebug("closing AWS Transcribe Stream")
 
     async def _run_transcribe(self):
-        while True:
+        while not rospy.is_shutdown():
             if self._speaking:
 
                 # Start transcription to generate our async stream
@@ -90,14 +91,14 @@ class RecognitionNode(object):
                     media_encoding="pcm",
                     vocabulary_name="tbd-podi"
                 )
-                print("Opened Stream", flush=True)
+                rospy.logdebug("openning AWS Transcribe Stream")
 
                 # Instantiate our handler and start processing events
                 handler = MyEventHandler(self._stream.output_stream)
 
                 await asyncio.gather(self._write_chunks(), handler.handle_events())
 
-                print(handler.transcript)
+                rospy.logdebug(f"result:{handler.transcript}")
 
                 if handler.transcript != None:
                     resp = Utterance()
@@ -110,14 +111,7 @@ class RecognitionNode(object):
                 self._utterance_start_header = None
                 self._speaking = False
                 self._audio_chunks = queue.Queue()
-
-    async def _test_async(self):
-        while True:
-            while not self._audio_chunks.empty():
-                # print(self._audio_chunks.get())
-                self._audio_chunks.get()
-                print(self._audio_chunks.qsize())
-            # print("Done with speech")
+                self._stream = None
 
     def _merge_audio(self, audio, vad):
         # print(vad.is_speech)
@@ -135,7 +129,7 @@ class RecognitionNode(object):
                 self._speaking = False
                 self._utterance_end_time = max([v.header.stamp for a, v in self._ring_buffer if not v.is_speech])
                 self._ring_buffer.clear()
-                print("Stoped Speaking ----------------------------")
+                #print("Stoped Speaking ----------------------------")
 
         # not running transcription
         else:
@@ -151,7 +145,7 @@ class RecognitionNode(object):
                     self._audio_chunks.put(a)
 
                 self._speaking = True
-                print("Started Speaking >>>>>>>>>>>>>>>>>>>>>>>>")
+                #print("Started Speaking >>>>>>>>>>>>>>>>>>>>>>>>")
 
                 # utterance start time is the first VAD true signal
                 self._utterance_start_header = [

@@ -1,5 +1,8 @@
 # Change log
 
+## [0.2.1] - Unreleased
+- **[Fixed]** Issue where AWS transcribe sometimes fail to recognize audio at the beginning of an utterance
+
 ## [0.2.0] - 2020-10-03
 - **[Merged]** the amazon transcribe wrapper.
 - **[Changed]** use DeepSpeech v0.8.2
