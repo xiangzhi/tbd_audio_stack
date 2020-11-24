@@ -154,6 +154,6 @@ class RecognitionNode(object):
 
 
 if __name__ == '__main__':
-    rospy.init_node("recognition_node")
+    rospy.init_node("recognition_node", log_level=rospy.DEBUG)
     vad = RecognitionNode()
     rospy.spin()

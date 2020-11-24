@@ -1,0 +1,7 @@
+<launch>
+    <arg name="output" default="screen"/>
+
+	<node name="audio_converter" pkg="tbd_audio_capture" type="converter_node.py" output="$(arg output)"/>
+	<node name="audio_vad" pkg="tbd_audio_vad" type="vad_node.py" output="$(arg output)"/>
+	<node name="audio_recognition" pkg="tbd_amazon_transcribe" type="recognition_node.py" output="$(arg output)" />
+</launch>
