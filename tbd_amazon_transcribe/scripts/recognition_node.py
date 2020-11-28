@@ -20,6 +20,9 @@ import base64
 import urllib
 import binascii
 
+
+import json
+
 from amazon_transcribe.client import TranscribeStreamingClient
 from amazon_transcribe.handlers import TranscriptResultStreamHandler
 from amazon_transcribe.model import TranscriptEvent
@@ -91,8 +94,11 @@ class RecognitionNode(object):
 
         ## Basic Information
         # TODO Replace with env stuff
-        ACCESSS_KEY = 'INSERT KEY HERE'
-        SECRET_KEY = 'INSERT KEY HERE'
+        ACCESSS_KEY = os.environ['AMAZON_ACCESS_KEY']
+        SECRET_KEY = os.environ['AMAZON_SECRET_KEY']
+        
+        # print(ACCESSS_KEY, SECRET_KEY)
+
         # HTTP verb
         METHOD = "GET"
         # Service name
@@ -119,7 +125,7 @@ class RecognitionNode(object):
         canonical_querystring += "&X-Amz-Expires=300"
         #canonical_querystring += "&X-Amz-Security-Token=" + token
         canonical_querystring += "&X-Amz-SignedHeaders=" + signed_headers
-        canonical_querystring += "&language-code=en-US&media-encoding=pcm&sample-rate=16000"
+        canonical_querystring += "&language-code=en-US&media-encoding=pcm&sample-rate=16000&vocabulary-name=tbd-podi"
         payload_hash = hashlib.sha256(('').encode('utf-8')).hexdigest()
         canonical_request = METHOD + '\n' + \
             canonical_uri + '\n' + canonical_querystring + '\n' + \
@@ -170,6 +176,24 @@ class RecognitionNode(object):
 
         return msg
 
+    def get_transcript_from_response(self, response):
+
+        decoded_string = response.decode("utf-8", "ignore")
+
+        start = decoded_string.index('{')
+        end = decoded_string.index(']}}') + 3
+
+        decoded_string = decoded_string[start:end]
+
+        decoded_string_json = json.loads(decoded_string)
+
+        if (len(decoded_string_json['Transcript']['Results']) > 0):
+            transcript = decoded_string_json['Transcript']['Results'][0]['Alternatives'][0]['Transcript']
+        else:
+            transcript = ""
+
+        return transcript
+
     async def _process(self, uri):
         # if self._speaking:
         while True:
@@ -193,14 +217,30 @@ class RecognitionNode(object):
                             # print(result, flush=True)
 
                 except:
-                    print(self._results[len(self._results) - 1], flush=True)
-                    
+                    if (len(self._results) != 0):
+                        response = self._results[len(self._results) - 1]
+                        
+                        try:
+                            transcript = self.get_transcript_from_response(response)
+
+                            print(transcript)
+
+                            resp = Utterance()
+                            resp.header = self._utterance_start_header
+                            resp.text = transcript
+                            resp.end_time = self._utterance_end_time
+                            self._pub.publish(resp)
+                        except:
+                            pass
+
+                        
+
                     self._utterance_start_header = None
                     self._speaking = False
+                    transcript = ""
                     self._audio_chunks = queue.Queue()
                     self._results = []
 
-                    print(self._results)
                     print("Caught Connection Finished")
 
 
