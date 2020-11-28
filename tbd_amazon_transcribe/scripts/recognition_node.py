@@ -31,6 +31,9 @@ import message_filters
 import rospy
 from tbd_audio_msgs.msg import AudioDataStamped, Utterance, VADStamped
 
+from dotenv import load_dotenv # add this line
+load_dotenv() # add this line
+
 
 class RecognitionNode(object):
     def __init__(self):
@@ -94,8 +97,8 @@ class RecognitionNode(object):
 
         ## Basic Information
         # TODO Replace with env stuff
-        ACCESSS_KEY = os.environ['AMAZON_ACCESS_KEY']
-        SECRET_KEY = os.environ['AMAZON_SECRET_KEY']
+        ACCESSS_KEY = os.getenv('AMAZON_ACCESS_KEY')
+        SECRET_KEY = os.getenv('AMAZON_SECRET_KEY')
         
         # print(ACCESSS_KEY, SECRET_KEY)
 
