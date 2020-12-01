@@ -8,7 +8,6 @@ import sys
 from base64 import b64encode
 import websockets
 from hashlib import sha256
-import pyaudio
 import wave
 import datetime
 from typing import Union, Any, List, Optional, cast
@@ -31,19 +30,14 @@ import message_filters
 import rospy
 from tbd_audio_msgs.msg import AudioDataStamped, Utterance, VADStamped
 
-from dotenv import load_dotenv # add this line
-load_dotenv() # add this line
-
+# we are using the boto3 framework to use exisiting AWS infrastructure to get the code
+from boto3 import Session
+session = Session()
+cred = session.get_credentials().get_frozen_credentials()
 
 class RecognitionNode(object):
     def __init__(self):
         self._speaking = False
-        # self._running_stream = False
-
-        self._format = pyaudio.paInt16
-        self._channels = 1
-        self._rate = 16000
-        self._chunk = 1024
 
         # copied over code
         self._ring_buffer = collections.deque(maxlen=50)
@@ -96,12 +90,9 @@ class RecognitionNode(object):
     def _create_socket_url(self, t: datetime.datetime) -> str:
 
         ## Basic Information
-        # TODO Replace with env stuff
-        ACCESSS_KEY = os.getenv('AMAZON_ACCESS_KEY')
-        SECRET_KEY = os.getenv('AMAZON_SECRET_KEY')
-        
-        # print(ACCESSS_KEY, SECRET_KEY)
-
+        ACCESSS_KEY = cred.access_key
+        SECRET_KEY = cred.secret_key
+    
         # HTTP verb
         METHOD = "GET"
         # Service name
@@ -226,7 +217,7 @@ class RecognitionNode(object):
                         try:
                             transcript = self.get_transcript_from_response(response)
 
-                            print(transcript)
+                            rospy.logdebug(f"receive transcript: {transcript}")
 
                             resp = Utterance()
                             resp.header = self._utterance_start_header
@@ -236,7 +227,6 @@ class RecognitionNode(object):
                         except:
                             pass
 
-                        
 
                     self._utterance_start_header = None
                     self._speaking = False
@@ -244,7 +234,7 @@ class RecognitionNode(object):
                     self._audio_chunks = queue.Queue()
                     self._results = []
 
-                    print("Caught Connection Finished")
+                    rospy.logdebug("Caught Connection Finished")
 
 
     def _merge_audio(self, audio, vad):
@@ -263,7 +253,7 @@ class RecognitionNode(object):
                 self._speaking = False
                 self._utterance_end_time = max([v.header.stamp for a, v in self._ring_buffer if not v.is_speech])
                 self._ring_buffer.clear()
-                print("Stoped Speaking ----------------------------", flush=True)
+                rospy.logdebug("Stopped Speaking ----------------------------")
 
         # not running transcription
         else:
@@ -279,7 +269,7 @@ class RecognitionNode(object):
                     self._audio_chunks.put(a)
 
                 self._speaking = True
-                print("Started Speaking >>>>>>>>>>>>>>>>>>>>>>>>", flush=True)
+                rospy.logdebug("Started Speaking >>>>>>>>>>>>>>>>>>>>>>>>")
 
                 # utterance start time is the first VAD true signal
                 self._utterance_start_header = [
@@ -288,6 +278,6 @@ class RecognitionNode(object):
 
 
 if __name__ == '__main__':
-    rospy.init_node("recognition_node")
+    rospy.init_node("recognition_node", log_level=rospy.DEBUG)
     vad = RecognitionNode()
     rospy.spin()
