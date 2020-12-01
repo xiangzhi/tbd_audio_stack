@@ -37,7 +37,7 @@ cred = session.get_credentials().get_frozen_credentials()
 
 class RecognitionNode(object):
     def __init__(self):
-        self._speaking = False
+        self._new_utterance_in_progress = False
 
         # copied over code
         self._ring_buffer = collections.deque(maxlen=50)
@@ -170,8 +170,7 @@ class RecognitionNode(object):
 
         return msg
 
-    def get_transcript_from_response(self, response):
-
+    def _get_response_in_json_format(self, response):
         decoded_string = response.decode("utf-8", "ignore")
 
         start = decoded_string.index('{')
@@ -181,6 +180,13 @@ class RecognitionNode(object):
 
         decoded_string_json = json.loads(decoded_string)
 
+        return decoded_string_json
+
+
+    def get_transcript_from_response(self, response):
+
+        decoded_string_json = self._get_response_in_json_format(response)
+
         if (len(decoded_string_json['Transcript']['Results']) > 0):
             transcript = decoded_string_json['Transcript']['Results'][0]['Alternatives'][0]['Transcript']
         else:
@@ -189,28 +195,33 @@ class RecognitionNode(object):
         return transcript
 
     async def _process(self, uri):
-        # if self._speaking:
-        while True:
+        while not rospy.is_shutdown():
 
-            if self._speaking:
+            if self._new_utterance_in_progress:
                 try:
                     async with websockets.connect(uri) as websocket:
 
-                        while self._speaking:
+                        while self._new_utterance_in_progress:
                             while not self._audio_chunks.empty():
                                 audio_data = self._audio_chunks.get()
                                 msg = self._create_audio_frame(audio_data)
                                 await websocket.send(msg)
 
+                            # add a loop for receive messages
+                            try:
+                                result = await asyncio.wait_for(websocket.recv(), timeout=0.1)
+                                self._results += [result]
+                            except asyncio.TimeoutError:
+                                pass
+
                         msg = self._create_audio_frame(b'')
                         await websocket.send(msg)
 
-                        while True:
+                        while not rospy.is_shutdown():
                             result = await websocket.recv()
                             self._results += [result]
-                            # print(result, flush=True)
 
-                except:
+                except websockets.ConnectionClosed as closed:
                     if (len(self._results) != 0):
                         response = self._results[len(self._results) - 1]
                         
@@ -224,23 +235,25 @@ class RecognitionNode(object):
                             resp.text = transcript
                             resp.end_time = self._utterance_end_time
                             self._pub.publish(resp)
+                            processing_time = (rospy.Time.now() - self._debug_ending_time).to_sec()
+                            rospy.logdebug(f"processing time since end:{processing_time}")
                         except:
                             pass
 
 
                     self._utterance_start_header = None
-                    self._speaking = False
+                    self._new_utterance_in_progress = False
                     transcript = ""
                     self._audio_chunks = queue.Queue()
                     self._results = []
 
-                    rospy.logdebug("Caught Connection Finished")
+                    rospy.logdebug("connection finished")
 
 
     def _merge_audio(self, audio, vad):
         # print(vad.is_speech)
         # if speaking
-        if self._speaking:
+        if self._new_utterance_in_progress:
 
             # add to buffer
             self._ring_buffer.append((audio.data, vad))
@@ -250,9 +263,10 @@ class RecognitionNode(object):
 
             # if there is more silence, stop
             if len([v for a, v in self._ring_buffer if not v.is_speech]) > (self._silent_ratio * self._ring_buffer.maxlen):
-                self._speaking = False
+                self._new_utterance_in_progress = False
                 self._utterance_end_time = max([v.header.stamp for a, v in self._ring_buffer if not v.is_speech])
                 self._ring_buffer.clear()
+                self._debug_ending_time = rospy.Time.now()
                 rospy.logdebug("Stopped Speaking ----------------------------")
 
         # not running transcription
@@ -268,7 +282,7 @@ class RecognitionNode(object):
                 for a, v in self._ring_buffer:
                     self._audio_chunks.put(a)
 
-                self._speaking = True
+                self._new_utterance_in_progress = True
                 rospy.logdebug("Started Speaking >>>>>>>>>>>>>>>>>>>>>>>>")
 
                 # utterance start time is the first VAD true signal
