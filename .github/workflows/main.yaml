@@ -6,7 +6,7 @@ name: Build
 # events but only for the master branch
 on:
   push:
-    branches: [ master, prithu-dev ]
+    branches: [ master ]
   pull_request:
     branches: [ master ]
 
@@ -17,22 +17,17 @@ jobs:
     strategy:
       matrix:
         ros_distributions:
-          - melodic
+          - noetic
     # The type of runner that the job will run on
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       - name: Setup ROS
-        uses: ros-tooling/setup-ros@0.0.20
+        uses: ros-tooling/setup-ros@0.0.25
         with: 
-          required-ros-distributions: melodic
-          
-      - name: Install ROS Dependencies
-        run: |
-          sudo apt install ros-melodic-audio-common*
-          sudo apt install ros-melodic-audio-capture* 
-      
+          required-ros-distributions: noetic
+
       - name: Create Workspace
         run: "mkdir ros_ws -p ros_ws/src"
 
@@ -42,23 +37,17 @@ jobs:
 
       - name: Install Python Dependencies
         run: |
-          sudo apt-get install python3-venv
-          sudo apt-get install python-catkin-tools
-          python3 -m venv venv
-          source venv/bin/activate
-          pip install webrtcvad deepspeech==0.7.4 rospkg empy alloylib
+          cd ros_ws/src/tbd_audio_stack
+          pip install -r requirements.txt
 
-      - name: Install Deepspeech Model Files
+      - name: Install dependencies
         run: |
-          cd src/tbd_audio_stack/tbd_audio_recognition && mkdir models && cd models
-          wget https://github.com/mozilla/DeepSpeech/releases/download/v0.7.4/deepspeech-0.7.4-models.pbmm
-          wget https://github.com/mozilla/DeepSpeech/releases/download/v0.7.4/deepspeech-0.7.4-models.scorer
-          cd ../../../../
+          rosdep init
+          rosdep update
+          rosdep install --from-paths src --ignore-src -y
 
       - name: Catkin Build
         run: |
           source /opt/ros/${{matrix.ros_distributions}}/setup.bash
-          source venv/bin/activate
           cd ros_ws
-          ls -a -l
-          catkin build -DPYTHON_VERSION=3
+          catkin_make_isolated

@@ -1,5 +1,8 @@
 # Change log
 
+## [0.2.1] - 2020-12-01
+- **[Changed]** AWS Transcribe now uses websocket.
+
 ## [0.2.0] - 2020-10-03
 - **[Merged]** the amazon transcribe wrapper.
 - **[Changed]** use DeepSpeech v0.8.2
