@@ -291,4 +291,3 @@ if __name__ == '__main__':
     rospy.init_node("recognition_node")
     vad = RecognitionNode()
     rospy.spin()
-

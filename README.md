@@ -17,6 +17,9 @@ This package is a wrapper for WebRTCVADPy which conducts voice activity detectio
 ### tbd_audio_recognition_deepspeech 
 This package is a wrapper for Mozilla's open source implementation of [DeepSpeech](https://github.com/mozilla/DeepSpeech). It takes in both the VAD and Stamped audio and publishes a detected utterances.
 
+### tbd_amazon_transcribe
+This package is a wrapper for Amazon's AWS Transcribe service.  It takes in both the VAD and Stamped audio and publishes a detected utterances.
+
 ## Quick 10-Step Setup Instructions
 
 1. Install ROS Melodic.
