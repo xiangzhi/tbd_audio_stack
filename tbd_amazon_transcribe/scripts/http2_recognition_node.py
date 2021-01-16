@@ -18,6 +18,7 @@ import hmac
 import base64
 import urllib
 import binascii
+import requests
 
 
 import json
@@ -29,6 +30,8 @@ from amazon_transcribe.model import TranscriptEvent
 import message_filters
 import rospy
 from tbd_audio_msgs.msg import AudioDataStamped, Utterance, VADStamped
+
+from hyper import HTTPConnection
 
 # we are using the boto3 framework to use exisiting AWS infrastructure to get the code
 from boto3 import Session
@@ -63,16 +66,25 @@ class RecognitionNode(object):
         self._ts.registerCallback(self._merge_audio)
 
         self._t = datetime.datetime.utcnow()
-        self._request_url = self._create_socket_url(self._t)
+        self._request_url = self._create_request_url(self._t)
 
-        print(self._request_url)
+        # print(self._request_url)
+
+        # r = requests.post(self._request_url)
+        # print(r.text)
+
+        conn = HTTPConnection('transcribestreaming.us-east-1.amazonaws.com')
+        conn.request('POST', '/stream-transcription')
+        resp = conn.get_response()
+
+        print(resp.read())
 
         rospy.loginfo("Amazon Transcribe Started")
 
         # create the event loop and run the async code
-        self._loop = asyncio.new_event_loop()
-        self._loop.run_until_complete(self._process(self._request_url))
-        self._loop.close()
+        # self._loop = asyncio.new_event_loop()
+        # self._loop.run_until_complete(self._process(self._request_url))
+        # self._loop.close()
 
 
     # Key derivation functions. See:
@@ -89,61 +101,81 @@ class RecognitionNode(object):
 
     # based on example at
     # https://docs.aws.amazon.com/transcribe/latest/dg/websocket.html
-    def _create_socket_url(self, t: datetime.datetime) -> str:
+    def _create_request_url(self, t: datetime.datetime) -> str:
 
         ## Basic Information
         ACCESSS_KEY = cred.access_key
         SECRET_KEY = cred.secret_key
     
         # HTTP verb
-        METHOD = "GET"
+        METHOD = "POST"
+        VERSION = "HTTP/2.0"
         # Service name
         SERVICE = "transcribe"
         # AWS Region
         REGION = "us-east-1"
         # Amazon Transcribe streaming endpoint
-        ENDPOINT = "wss://transcribestreaming." + REGION + ".amazonaws.com:8443"
+        ENDPOINT = "/stream-transcription"
         # Host
-        HOST = "transcribestreaming." + REGION + ".amazonaws.com:8443"
+        HOST = "transcribestreaming." + REGION + ".amazonaws.com"
+        CONTENT_TYPE = "application/vnd.amazon.eventstream"
+        AMZ_TARGET = "com.amazonaws.transcribe.Transcribe.StartStreamTranscription"
+        AMZ_CONTENT_SHA256 = "STREAMING-AWS4-HMAC-SHA256-EVENTS"
         # Date and time of request
         amz_date = t.strftime('%Y%m%dT%H%M%SZ')
         datestamp = t.strftime('%Y%m%d')
+        LANGUAGE_CODE = "en-US"
+        MEDIA_ENCODING = "pcm"
+        SAMPLE_RATE = "16000"
+        TRANSFER_ENCODING = "chunked"
 
-        ## create canonical request
-        canonical_uri = "/stream-transcription-websocket"
-        canonical_headers = "host:" + HOST + "\n"
-        signed_headers = "host"       
-        algorithm = "AWS4-HMAC-SHA256"                 
+        ## create the canonical reqeust
+        canonical_uri = ENDPOINT + "\n"
+        canonical_headers = "content-type:" + CONTENT_TYPE + "\n"
+        canonical_headers += "host:" + HOST + "\n"
+        canonical_headers += "transfer-encoding:" + TRANSFER_ENCODING + "\n"
+        canonical_headers += "x-amz-content-sha256:" + AMZ_CONTENT_SHA256 + "\n"
+        canonical_headers += "x-amz-date:" + amz_date + "\n"
+        canonical_headers += "x-amz-target:" + AMZ_TARGET + "\n"
+        canonical_headers += "x-amzn-transcribe-language-code:" + LANGUAGE_CODE + "\n"
+        canonical_headers += "x-amzn-transcribe-media-encoding:" + MEDIA_ENCODING + "\n"
+        canonical_headers += "x-amzn-transcribe-sample-rate:" + SAMPLE_RATE + "\n"
+
+        signed_headers = 'content-type;host;transfer-encoding;x-amz-content-sha256;x-amz-date;x-amz-target;x-amzn-transcribe-language-code;x-amzn-transcribe-media-encoding;x-amzn-transcribe-sample-rate'
+        canonical_request = METHOD + '\n' + canonical_uri + '\n' + canonical_headers + '\n' + signed_headers + '\n' + AMZ_CONTENT_SHA256
+
+        # print("Canonical Request")
+        # print(canonical_request + '\n')
+
+        algorithm = "AWS4-HMAC-SHA256"
         credential_scope = datestamp + "/" + REGION + "/" + SERVICE + "/" + "aws4_request"
-        canonical_querystring  = "X-Amz-Algorithm=" + algorithm
-        canonical_querystring += "&X-Amz-Credential=" + urllib.parse.quote_plus(ACCESSS_KEY + '/' + credential_scope)
-        canonical_querystring += "&X-Amz-Date=" + amz_date 
-        canonical_querystring += "&X-Amz-Expires=300"
-        #canonical_querystring += "&X-Amz-Security-Token=" + token
-        canonical_querystring += "&X-Amz-SignedHeaders=" + signed_headers
-        canonical_querystring += "&language-code=en-US&media-encoding=pcm&sample-rate=16000&vocabulary-name=tbd-podi"
-        payload_hash = hashlib.sha256(('').encode('utf-8')).hexdigest()
-        canonical_request = METHOD + '\n' + \
-            canonical_uri + '\n' + canonical_querystring + '\n' + \
-            canonical_headers + '\n' + signed_headers \
-            + '\n' + payload_hash 
-
+        
         ## (2) Create the String to Sign
         string_to_sign = algorithm + "\n" \
             + amz_date + "\n" \
             + credential_scope + "\n" \
             + hashlib.sha256(canonical_request.encode('utf-8')).hexdigest()
 
+        # print("String to Sign")
+        # print(string_to_sign + '\n')
+
         ## (3) Calculate the Signature
         signing_key = self._get_signature_key(SECRET_KEY, datestamp, REGION, SERVICE)
         # Sign the string_to_sign using the signing_key
         signature = hmac.new(signing_key, (string_to_sign).encode('utf-8'), hashlib.sha256).hexdigest()
+        # print("Signature")
+        # print(signature + '\n')
+
+        authorization_header = algorithm + " Credential=" + ACCESSS_KEY + "/" + credential_scope + ",SignedHeaders=" + signed_headers + ',Signature=' + signature
+        # print("Authorization Header")
+        # print(authorization_header + '\n')
 
         ## (4) add signing information to the request and create the request url
-        canonical_querystring += "&X-Amz-Signature=" + signature
-        request_url = ENDPOINT + canonical_uri + "?" + canonical_querystring
+        canonical_headers += "Authorization:" + authorization_header
+        request_url = 'https://' + HOST + canonical_uri + canonical_headers
 
         return request_url
+        # return "http://transcribestreaming.us-east-1.amazonaws.com/stream-transcription"
 
     def _encode_header(self, name, value_type, value_string):
         payload = (len(name)).to_bytes(1, byteorder='big')
