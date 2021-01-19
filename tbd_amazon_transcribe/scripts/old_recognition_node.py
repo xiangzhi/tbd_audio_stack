@@ -38,7 +38,6 @@ class MyEventHandler(TranscriptResultStreamHandler):
                 hypothesis = alt.transcript
                 
                 if not result.is_partial:
-                    # await self.stream.input_stream.end_stream()
                     self.transcript = hypothesis
 
                     rospy.logdebug(f"result:{self.transcript}")
@@ -67,8 +66,7 @@ class RecognitionNode(object):
         self._utterance_start_header = None
         self._stream = None
 
-        self._vad_buffer = [None for i in range(25)]
-        self._audio_buffer = [None for i in range(50)]
+        self._vad_buffer = [None for i in range(30)]
 
         self._start_transcribe = False
 
@@ -132,13 +130,6 @@ class RecognitionNode(object):
 
         async for chunk in self.mic_stream():
             
-            # if chunk != b'':
-            #     await stream.input_stream.send_audio_event(audio_chunk=chunk)
-            # else:
-            #     print("Closing Stream")
-            #     await stream.input_stream.end_stream()
-            #     return
-            
             ### WORKING CODE ###
 
             audio = chunk[0].data
@@ -151,14 +142,14 @@ class RecognitionNode(object):
             
 
             if vad_buffer.count(True) > 30 and not self._speaking:
-                print("Starting audio")
+                print("Starting audio", flush=True)
                 self._speaking = True
                 self._start_transcribe = False
                 # print(buffer)
                 for a in audio_buffer:
                     await stream.input_stream.send_audio_event(audio_chunk=a)
             elif vad_buffer.count(True) <= 20 and self._speaking:
-                print("Stopped")
+                print("Stopped", flush=True)
                 self._speaking = False
                 await stream.input_stream.end_stream()
                 return
@@ -173,7 +164,7 @@ class RecognitionNode(object):
         while True:
 
             if self._start_transcribe:    
-                print("New Stream")
+                print("New Stream", flush=True)
 
                 # Start transcription to generate our async stream
                 self._stream = await self._client.start_stream_transcription(
@@ -189,21 +180,16 @@ class RecognitionNode(object):
 
                 await asyncio.gather(self._write_chunks(self._stream), handler.handle_events())
 
+                print("Closing Stream\n", flush=True)
+
                 # self._ring_buffer.clear()
 
-                # if handler.transcript != None:
-                #     resp = Utterance()
-                #     resp.header = self._utterance_start_header
-                #     resp.text = handler.transcript
-                #     resp.end_time = self._utterance_end_time
-                #     self._pub.publish(resp)
-
-        # don't loop multiple times
-        # self._utterance_start_header = None
-        # self._speaking = False
-        # self._audio_chunks = queue.Queue()
-        # self._stream = None
-        pass
+                # don't loop multiple times
+                # self._utterance_start_header = None
+                self._start_transcribe = False
+                # self._audio_chunks = queue.Queue()
+                # self._stream = None
+                pass
 
     def _merge_audio(self, audio, vad):
         self._message_queue.put((audio, vad))
@@ -215,65 +201,11 @@ class RecognitionNode(object):
         
         # # print(self._vad_buffer)
 
-        if self._vad_buffer.count(True) > 15 and not self._start_transcribe and not self._speaking:
+        if self._vad_buffer.count(True) > 25 and not self._start_transcribe and not self._speaking:
             print("Starting audio")
             self._start_transcribe = True
-            # print(self._vad_buffer)
-            # for a in self._audio_buffer:
-            #     self._message_queue.put(a)
-        # elif self._vad_buffer.count(True) <= 25 and self._speaking:
-        #     print("Stopped")
-        #     self._speaking = False
-        #     # self._message_queue.put(b'')
-        #     # self._audio_buffer = [None for i in range(100)]
-        #     self._vad_buffer = [None for i in range(100)]
-        # # elif self._speaking:
-        # #     # print('Sending speech')
-        # #     self._message_queue.put(audio.data)
 
-        # if vad.is_speech:
-        #     self._speaking = True
-        # else:
-        #     self._speaking = False
-
-        # print(vad.is_speech)
-        # if speaking
-        # if self._speaking:
-
-        #     # add to buffer
-        #     self._ring_buffer.append((audio.data, vad))
-
-        #     # add to the audio chunk queue since its still in speech
-        #     # self._audio_chunks.put(audio.data)
-
-        #     # if there is more silence, stop
-        #     if len([v for a, v in self._ring_buffer if not v.is_speech]) > (self._silent_ratio * self._ring_buffer.maxlen):
-        #         self._speaking = False
-        #         self._utterance_end_time = max([v.header.stamp for a, v in self._ring_buffer if not v.is_speech])
-        #         self._ring_buffer.clear()
-        #         #print("Stoped Speaking ----------------------------")
-
-        # # not running transcription
-        # else:
-
-        #     # add to the buffer
-        #     self._ring_buffer.append((audio.data, vad))
-
-        #     # if there is possible speech
-        #     if len([v for a, v in self._ring_buffer if v.is_speech]) > (self._speak_ratio * self._ring_buffer.maxlen):
-
-        #         # send the speech to the queue
-        #         # for a, v in self._ring_buffer:
-        #             # self._audio_chunks.put(a)
-
-        #         self._speaking = True
-        #         #print("Started Speaking >>>>>>>>>>>>>>>>>>>>>>>>")
-
-        #         # utterance start time is the first VAD true signal
-        #         self._utterance_start_header = [
-        #             v for a, v in self._ring_buffer if v.is_speech].pop().header
-        #         self._ring_buffer.clear()
-
+    
 
 if __name__ == '__main__':
     rospy.init_node("recognition_node", log_level=rospy.DEBUG)
