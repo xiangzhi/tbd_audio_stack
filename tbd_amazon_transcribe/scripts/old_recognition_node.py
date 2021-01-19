@@ -57,7 +57,7 @@ class MyEventHandler(TranscriptResultStreamHandler):
 class RecognitionNode(object):
     def __init__(self):
 
-        self._speaking = True
+        self._speaking = False
         # self._running_stream = False
 
         # copied over code
@@ -66,6 +66,11 @@ class RecognitionNode(object):
         self._speak_ratio = 0.75
         self._utterance_start_header = None
         self._stream = None
+
+        self._vad_buffer = [None for i in range(25)]
+        self._audio_buffer = [None for i in range(50)]
+
+        self._start_transcribe = False
 
         # amazon transcribe client
         self._client = TranscribeStreamingClient(region='us-east-1')
@@ -107,35 +112,12 @@ class RecognitionNode(object):
     async def mic_stream(self):
         # This function wraps the raw input stream from the microphone forwarding
         # the blocks to an asyncio.Queue.
-        # loop = self._loop
-        # input_queue = asyncio.Queue()
-
-        # def callback(indata, frame_count, time_info, status):
-        #     loop.call_soon_threadsafe(input_queue.put_nowait, (bytes(indata), status))
-
-        # Be sure to use the correct parameters for the audio stream that matches
-        # the audio formats described for the source language you'll be using:
-        # https://docs.aws.amazon.com/transcribe/latest/dg/streaming.html
-        # stream = sounddevice.RawInputStream(
-        #     channels=1,
-        #     samplerate=16000,
-        #     callback=callback,
-        #     blocksize=1024 * 2,
-        #     dtype="int16",
-        # )
-        # Initiate the audio stream and asynchronously yield the audio chunks
-        # as they become available.
-        # with stream:
-        #     while True:
-        #         indata, status = await input_queue.get()
-        #         yield indata, status
-
 
         while True:
             msg = self._message_queue.get()
-            audio = msg[0]
-            vad = msg[1]
-            
+            # audio = msg[0]
+            # vad = msg[1]
+        
             yield msg
                 
 
@@ -143,52 +125,56 @@ class RecognitionNode(object):
     async def _write_chunks(self, stream):
         # This connects the raw audio chunks generator coming from the microphone
         # and passes them along to the transcription stream.
-        buffer = [False for i in range(100)]
+        vad_buffer = [None for i in range(50)]
+        audio_buffer = [None for i in range(50)]
         # print(buffer)
 
+
         async for chunk in self.mic_stream():
-            # if self._speaking or not self._audio_chunks.empty():
+            
+            # if chunk != b'':
             #     await stream.input_stream.send_audio_event(audio_chunk=chunk)
             # else:
-            #     rospy.logdebug("closing AWS Transcribe Stream")
+            #     print("Closing Stream")
             #     await stream.input_stream.end_stream()
-            #     break
-            # print(chunk)
+            #     return
+            
+            ### WORKING CODE ###
 
             audio = chunk[0].data
             speaking = chunk[1].is_speech
-            
-            buffer.pop(0)
-            buffer.append(speaking)
-            
-            print(buffer.count(True) > 50)
 
-            if buffer.count(True) > 50:
-                print("Sending audio")
+            vad_buffer.pop(0)
+            vad_buffer.append(speaking)
+            audio_buffer.pop(0)
+            audio_buffer.append(audio)
+            
+
+            if vad_buffer.count(True) > 30 and not self._speaking:
+                print("Starting audio")
                 self._speaking = True
-                await stream.input_stream.send_audio_event(audio_chunk=audio)
-            elif buffer.count(True) <= 50 and self._speaking:
+                self._start_transcribe = False
+                # print(buffer)
+                for a in audio_buffer:
+                    await stream.input_stream.send_audio_event(audio_chunk=a)
+            elif vad_buffer.count(True) <= 20 and self._speaking:
                 print("Stopped")
                 self._speaking = False
                 await stream.input_stream.end_stream()
+                return
+            elif self._speaking:
+                # print('Sending speech')
+                await stream.input_stream.send_audio_event(audio_chunk=audio)
+
+            ### END WORKING CODE ###
  
 
-            # # if self._speaking:
-            #     # print("Sendin g audio")
-            # try:
-            #     await stream.input_stream.send_audio_event(audio_chunk=audio)
-            # except:
-            #     # print("Stream Stopped")
-            #     pass
-            # else:
-        # print("Stopped")
-        # await stream.input_stream.end_stream()
-
     async def _run_transcribe(self):
-        while not rospy.is_shutdown():
-            if self._speaking:
-                
+        while True:
+
+            if self._start_transcribe:    
                 print("New Stream")
+
                 # Start transcription to generate our async stream
                 self._stream = await self._client.start_stream_transcription(
                     language_code="en-US",
@@ -202,7 +188,6 @@ class RecognitionNode(object):
                 handler = MyEventHandler(self._stream.output_stream, self._stream, self._pub)
 
                 await asyncio.gather(self._write_chunks(self._stream), handler.handle_events())
-                rospy.logdebug(f"result:{handler.transcript}")
 
                 # self._ring_buffer.clear()
 
@@ -222,6 +207,29 @@ class RecognitionNode(object):
 
     def _merge_audio(self, audio, vad):
         self._message_queue.put((audio, vad))
+        
+        self._vad_buffer.pop(0)
+        self._vad_buffer.append(vad.is_speech)
+        # # self._audio_buffer.pop(0)
+        # # self._audio_buffer.append(audio.data)
+        
+        # # print(self._vad_buffer)
+
+        if self._vad_buffer.count(True) > 15 and not self._start_transcribe and not self._speaking:
+            print("Starting audio")
+            self._start_transcribe = True
+            # print(self._vad_buffer)
+            # for a in self._audio_buffer:
+            #     self._message_queue.put(a)
+        # elif self._vad_buffer.count(True) <= 25 and self._speaking:
+        #     print("Stopped")
+        #     self._speaking = False
+        #     # self._message_queue.put(b'')
+        #     # self._audio_buffer = [None for i in range(100)]
+        #     self._vad_buffer = [None for i in range(100)]
+        # # elif self._speaking:
+        # #     # print('Sending speech')
+        # #     self._message_queue.put(audio.data)
 
         # if vad.is_speech:
         #     self._speaking = True
