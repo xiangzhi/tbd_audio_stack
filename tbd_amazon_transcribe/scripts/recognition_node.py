@@ -4,23 +4,8 @@ import asyncio
 import queue
 import collections
 import sys
-
-from base64 import b64encode
-import websockets
-from hashlib import sha256
-import wave
-import datetime
-from typing import Union, Any, List, Optional, cast
-import os
-from pathlib import Path
-import hashlib
-import hmac
-import base64
-import urllib
-import binascii
-
-
-import json
+import time
+import threading
 
 from amazon_transcribe.client import TranscribeStreamingClient
 from amazon_transcribe.handlers import TranscriptResultStreamHandler
@@ -30,276 +15,181 @@ import message_filters
 import rospy
 from tbd_audio_msgs.msg import AudioDataStamped, Utterance, VADStamped
 
-# we are using the boto3 framework to use exisiting AWS infrastructure to get the code
-from boto3 import Session
-session = Session()
-cred = session.get_credentials().get_frozen_credentials()
 
-class RecognitionNode(object):
+class SpeechEventHandler(TranscriptResultStreamHandler):
+    def __init__(self, output_stream, stream, pub, caller):
+        super().__init__(output_stream)
+        self.transcript = None
+        self.stream = stream
+        # self._utterance_start_header = start_time
+        # self._utterance_end_time = end_time
+        self._pub = pub
+        self._caller = caller
+
+    async def handle_transcript_event(self, transcript_event: TranscriptEvent):
+        # This handler can be implemented to handle transcriptions as needed.
+        # Here's an example to get started.
+        hypothesis = None
+        results = transcript_event.transcript.results
+        for result in results:
+            for alt in result.alternatives:
+                hypothesis = alt.transcript
+                if not result.is_partial:
+                    self.transcript = hypothesis
+
+                    rospy.loginfo(f"result:{self.transcript}")
+
+                    resp = Utterance()
+                    resp.header.stamp = self._caller.msg_start_time
+                    resp.text = self.transcript
+                    resp.end_time = self._caller.msg_end_time
+                    self._pub.publish(resp)
+                    
+            
+
+
+class AWSTranscribeRecognitionNode(object):
     def __init__(self):
-        self._new_utterance_in_progress = False
 
-        # copied over code
-        self._ring_buffer = collections.deque(maxlen=50)
-        self._silent_ratio = 0.75
-        self._speak_ratio = 0.75
-        self._utterance_start_header = None
+        self._speaking = False
+        self._stream = None
+
+        self._custom_vocabulary = rospy.get_param("~custom_vocabulary", default=None) 
+        rospy.logdebug(f"using custom vocabulary:{self._custom_vocabulary}")
+
+        self._vad_buffer_size = 20
+        self._vad_buffer = [None for i in range(0,self._vad_buffer_size)]
+        self._transcribe_ratio = 0.8 
+
+        self._start_transcribe_flag = threading.Event()
+
+        # amazon transcribe client
+        self._client = TranscribeStreamingClient(region='us-east-1')
 
         # queue to hold the audio chunks
         self._audio_chunks = queue.Queue()
-
-        # list to hold the results
-        self._results = []
+        self._message_queue = queue.Queue()
 
         self._pub = rospy.Publisher('/utterance', Utterance, queue_size=1)
+
+        # merge the audio & vad signal
         self._audio_sub = message_filters.Subscriber(
             'audioStamped', AudioDataStamped)
         self._vad_sub = message_filters.Subscriber('vad', VADStamped)
-
         self._ts = message_filters.TimeSynchronizer(
             [self._audio_sub, self._vad_sub], 10)
-
-        # this might need to change, idk TODO
-        self._ts.registerCallback(self._merge_audio)
-
-        self._t = datetime.datetime.utcnow()
-        self._request_url = self._create_socket_url(self._t)
-
-        print(self._request_url)
+        self._ts.registerCallback(self._audio_cb)
 
         rospy.loginfo("Amazon Transcribe Started")
 
         # create the event loop and run the async code
         self._loop = asyncio.new_event_loop()
-        self._loop.run_until_complete(self._process(self._request_url))
+        self._loop.run_until_complete(self._run_transcribe())
         self._loop.close()
 
+        rospy.loginfo("Amazon Transcribe Stopped")
 
-    # Key derivation functions. See:
-    # http://docs.aws.amazon.com/general/latest/gr/signature-v4-examples.html#signature-v4-examples-python
-    def _sign(self, key, msg):
-        return hmac.new(key, msg.encode('utf-8'), hashlib.sha256).digest()
+    def _audio_cb(self, audio, vad):
+        # place message into queue
+        self._message_queue.put((audio, vad))
+        
+        # add vad_buffer to length
+        self._vad_buffer.pop(0)
+        self._vad_buffer.append(vad.is_speech)
 
-    def _get_signature_key(self, key, dateStamp, regionName, serviceName):
-        kDate = self._sign(('AWS4' + key).encode('utf-8'), dateStamp)
-        kRegion = self._sign(kDate, regionName)
-        kService = self._sign(kRegion, serviceName)
-        kSigning = self._sign(kService, 'aws4_request')
-        return kSigning
-
-    # based on example at
-    # https://docs.aws.amazon.com/transcribe/latest/dg/websocket.html
-    def _create_socket_url(self, t: datetime.datetime) -> str:
-
-        ## Basic Information
-        ACCESSS_KEY = cred.access_key
-        SECRET_KEY = cred.secret_key
-    
-        # HTTP verb
-        METHOD = "GET"
-        # Service name
-        SERVICE = "transcribe"
-        # AWS Region
-        REGION = "us-east-1"
-        # Amazon Transcribe streaming endpoint
-        ENDPOINT = "wss://transcribestreaming." + REGION + ".amazonaws.com:8443"
-        # Host
-        HOST = "transcribestreaming." + REGION + ".amazonaws.com:8443"
-        # Date and time of request
-        amz_date = t.strftime('%Y%m%dT%H%M%SZ')
-        datestamp = t.strftime('%Y%m%d')
-
-        ## create canonical request
-        canonical_uri = "/stream-transcription-websocket"
-        canonical_headers = "host:" + HOST + "\n"
-        signed_headers = "host"       
-        algorithm = "AWS4-HMAC-SHA256"                 
-        credential_scope = datestamp + "/" + REGION + "/" + SERVICE + "/" + "aws4_request"
-        canonical_querystring  = "X-Amz-Algorithm=" + algorithm
-        canonical_querystring += "&X-Amz-Credential=" + urllib.parse.quote_plus(ACCESSS_KEY + '/' + credential_scope)
-        canonical_querystring += "&X-Amz-Date=" + amz_date 
-        canonical_querystring += "&X-Amz-Expires=300"
-        #canonical_querystring += "&X-Amz-Security-Token=" + token
-        canonical_querystring += "&X-Amz-SignedHeaders=" + signed_headers
-        canonical_querystring += "&language-code=en-US&media-encoding=pcm&sample-rate=16000&vocabulary-name=tbd-podi"
-        payload_hash = hashlib.sha256(('').encode('utf-8')).hexdigest()
-        canonical_request = METHOD + '\n' + \
-            canonical_uri + '\n' + canonical_querystring + '\n' + \
-            canonical_headers + '\n' + signed_headers \
-            + '\n' + payload_hash 
-
-        ## (2) Create the String to Sign
-        string_to_sign = algorithm + "\n" \
-            + amz_date + "\n" \
-            + credential_scope + "\n" \
-            + hashlib.sha256(canonical_request.encode('utf-8')).hexdigest()
-
-        ## (3) Calculate the Signature
-        signing_key = self._get_signature_key(SECRET_KEY, datestamp, REGION, SERVICE)
-        # Sign the string_to_sign using the signing_key
-        signature = hmac.new(signing_key, (string_to_sign).encode('utf-8'), hashlib.sha256).hexdigest()
-
-        ## (4) add signing information to the request and create the request url
-        canonical_querystring += "&X-Amz-Signature=" + signature
-        request_url = ENDPOINT + canonical_uri + "?" + canonical_querystring
-
-        return request_url
-
-    def _encode_header(self, name, value_type, value_string):
-        payload = (len(name)).to_bytes(1, byteorder='big')
-        payload += name.encode('utf-8')
-        payload += (value_type).to_bytes(1, byteorder='big')
-        payload += (len(value_string)).to_bytes(2, byteorder='big')
-        payload += value_string.encode('utf-8')
-        return payload
-
-    def _create_audio_frame(self, audio_data: bytes) -> bytes:
-
-        # create the data payload
-        # headers
-        header = self._encode_header(':content-type',7, 'application/octet-stream')
-        header += self._encode_header(':event-type',7, 'AudioEvent')
-        header += self._encode_header(':message-type',7, 'event')
-
-        header_len = int(len(header)).to_bytes(4, byteorder='big')
-        total_len = int(len(audio_data) + len(header) + 16).to_bytes(4, byteorder='big')
-
-        msg = total_len + header_len
-        msg += (binascii.crc32(msg)).to_bytes(4, byteorder='big')
-        msg += header
-        msg += audio_data
-        msg += (binascii.crc32(msg)).to_bytes(4, byteorder='big')
-
-        return msg
-
-    def _get_response_in_json_format(self, response):
-        decoded_string = response.decode("utf-8", "ignore")
-
-        start = decoded_string.index('{')
-        end = decoded_string.index(']}}') + 3
-
-        decoded_string = decoded_string[start:end]
-
-        decoded_string_json = json.loads(decoded_string)
-
-        return decoded_string_json
+        # start transcription if certain portion of the vad is true
+        if self._vad_buffer.count(True)/len(self._vad_buffer) >= self._transcribe_ratio and not self._speaking and not self._start_transcribe_flag.is_set():
+            rospy.logdebug("Starting audio transcription")
+            self._start_transcribe_flag.set()
 
 
-    def get_transcript_from_response(self, response):
+    async def audio_stream(self):
+        # wraps incoming audio stream into async
 
-        decoded_string_json = self._get_response_in_json_format(response)
+        while not rospy.is_shutdown():
+            try:
+                msg = self._message_queue.get(timeout=0.1)
+                yield msg
+            except Queue.Empty as e:
+                pass
+        raise rospy.ROSInterruptException("ROS Shutting")
 
-        if (len(decoded_string_json['Transcript']['Results']) > 0):
-            transcript = decoded_string_json['Transcript']['Results'][0]['Alternatives'][0]['Transcript']
-        else:
-            transcript = ""
+            
+    async def _write_chunks(self, stream):
 
-        return transcript
+        local_buffer_size = self._vad_buffer_size + 10
 
-    async def _process(self, uri):
+        vad_buffer = [None for i in range(local_buffer_size)]
+        header_buffer = [None for i in range(local_buffer_size)]
+        audio_buffer = [None for i in range(local_buffer_size)]
+
+        async for chunk in self.audio_stream():
+            
+            audio = chunk[0].data
+            vad = chunk[1].is_speech
+
+
+            header_buffer.pop(0)
+            header_buffer.append(chunk[1].header)
+            vad_buffer.pop(0)
+            vad_buffer.append(vad)
+            audio_buffer.pop(0)
+            audio_buffer.append(audio)
+            
+
+            if vad_buffer.count(True) > local_buffer_size * 0.5 and not self._speaking:
+                rospy.logdebug("Starting Send Audio TO AWS")
+                self._speaking = True
+                self._start_transcribe = False
+                
+                found_beginning = False
+                for i,a in enumerate(audio_buffer):
+                    if vad_buffer[i] and not found_beginning:
+                        self.msg_start_time = header_buffer[i].stamp
+                        found_beginning = True
+                    if a != None and found_beginning:
+                        await stream.input_stream.send_audio_event(audio_chunk=a)
+            elif vad_buffer.count(True) <= local_buffer_size * 0.5 and self._speaking:
+                rospy.logdebug("Sending last audio to AWS")
+                self._speaking = False
+                vad_buffer.reverse()
+                self.msg_end_time = None
+                for i,v in enumerate(vad_buffer):
+                    if v:
+                        self.msg_end_time = header_buffer[local_buffer_size -1 - i].stamp
+                if self.msg_end_time is None:
+                    self.msg_end_time = header_buffer[local_buffer_size -1].stamp
+                await stream.input_stream.end_stream()
+                return
+            elif self._speaking:
+                await stream.input_stream.send_audio_event(audio_chunk=audio) 
+
+
+    async def _run_transcribe(self):
         while not rospy.is_shutdown():
 
-            if self._new_utterance_in_progress:
-                try:
-                    async with websockets.connect(uri) as websocket:
+            # wait for transcribe flag
+            if self._start_transcribe_flag.wait(0.1):
+                start_time = rospy.Time.now()
+                # Start transcription to generate our async stream
+                self._stream = await self._client.start_stream_transcription(
+                    language_code="en-US",
+                    media_sample_rate_hz=16000,
+                    media_encoding="pcm",
+                    vocabulary_name=self._custom_vocabulary
+                )
+                rospy.logdebug("Starting AWS Stream")
+                # Instantiate our handler and start processing events
+                handler = SpeechEventHandler(self._stream.output_stream, self._stream, self._pub, self)
 
-                        while self._new_utterance_in_progress:
-                            while not self._audio_chunks.empty():
-                                audio_data = self._audio_chunks.get()
-                                msg = self._create_audio_frame(audio_data)
-                                await websocket.send(msg)
+                await asyncio.gather(self._write_chunks(self._stream), handler.handle_events())
+                rospy.logdebug("Closing AWS Stream")
+                self._start_transcribe_flag.clear()
+                rospy.logdebug(f"Transcribe Time:{(rospy.Time.now() - start_time).to_sec()}")
 
-                            # add a loop for receive messages
-                            try:
-                                result = await asyncio.wait_for(websocket.recv(), timeout=0.1)
-                                self._results += [result]
-                            except asyncio.TimeoutError:
-                                pass
-
-                        msg = self._create_audio_frame(b'')
-                        await websocket.send(msg)
-
-                        while not rospy.is_shutdown():
-                            result = await websocket.recv()
-                            self._results += [result]
-                            tic = rospy.Time.now()
-
-                except websockets.ConnectionClosed as closed:
-
-                    toc = rospy.Time.now()
-                    delay = (toc - tic).to_sec()
-                    rospy.logdebug(f"delay:{delay}")
-
-                    if (len(self._results) != 0):
-                        response = self._results[len(self._results) - 1]
-                        
-                        try:
-                            transcript = self.get_transcript_from_response(response)
-
-                            rospy.logdebug(f"receive transcript: {transcript}")
-
-                            resp = Utterance()
-                            resp.header = self._utterance_start_header
-                            resp.text = transcript
-                            resp.end_time = self._utterance_end_time
-                            self._pub.publish(resp)
-                            processing_time = (rospy.Time.now() - self._debug_ending_time).to_sec()
-                            rospy.logdebug(f"processing time since end:{processing_time}")
-                        except:
-                            pass
-
-
-                    self._utterance_start_header = None
-                    self._new_utterance_in_progress = False
-                    transcript = ""
-                    self._audio_chunks = queue.Queue()
-                    self._results = []
-
-                    rospy.logdebug("connection finished")
-
-
-    def _merge_audio(self, audio, vad):
-        # print(vad.is_speech)
-        # if speaking
-        if self._new_utterance_in_progress:
-
-            # add to buffer
-            self._ring_buffer.append((audio.data, vad))
-
-            # add to the audio chunk queue since its still in speech
-            self._audio_chunks.put(audio.data)
-
-            # if there is more silence, stop
-            if len([v for a, v in self._ring_buffer if not v.is_speech]) > (self._silent_ratio * self._ring_buffer.maxlen):
-                self._new_utterance_in_progress = False
-                self._utterance_end_time = max([v.header.stamp for a, v in self._ring_buffer if not v.is_speech])
-                self._ring_buffer.clear()
-                self._debug_ending_time = rospy.Time.now()
-                rospy.logdebug("Stopped Speaking ----------------------------")
-
-        # not running transcription
-        else:
-
-            # add to the buffer
-            self._ring_buffer.append((audio.data, vad))
-
-            # if there is possible speech
-            if len([v for a, v in self._ring_buffer if v.is_speech]) > (self._speak_ratio * self._ring_buffer.maxlen):
-
-                # send the speech to the queue
-                for a, v in self._ring_buffer:
-                    self._audio_chunks.put(a)
-
-                self._new_utterance_in_progress = True
-                rospy.logdebug("Started Speaking >>>>>>>>>>>>>>>>>>>>>>>>")
-
-                # utterance start time is the first VAD true signal
-                self._utterance_start_header = [
-                    v for a, v in self._ring_buffer if v.is_speech].pop().header
-                self._ring_buffer.clear()
-
+    
 
 if __name__ == '__main__':
     rospy.init_node("recognition_node", log_level=rospy.DEBUG)
-    vad = RecognitionNode()
+    node = AWSTranscribeRecognitionNode()
     rospy.spin()

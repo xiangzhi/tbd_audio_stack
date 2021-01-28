@@ -3,8 +3,8 @@
 
 	<node name="audio_converter" pkg="tbd_audio_capture" type="converter_node.py" output="$(arg output)"/>
 	<node name="audio_vad" pkg="tbd_audio_vad" type="vad_node.py" output="$(arg output)"/>
-	<node name="audio_recognition" pkg="tbd_amazon_transcribe" type="old_recognition_node.py" output="$(arg output)">
-
+	<node name="audio_recognition" pkg="tbd_amazon_transcribe" type="recognition_node.py" output="$(arg output)">
+		<param name="custom_vocabulary" value="tbd-podi" />
 	</node>
     <include file="$(find audio_capture)/launch/capture_wave.launch" />
 </launch>
