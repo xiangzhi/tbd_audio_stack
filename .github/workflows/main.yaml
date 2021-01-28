@@ -24,7 +24,7 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       - name: Setup ROS
-        uses: ros-tooling/setup-ros@0.0.25
+        uses: ros-tooling/setup-ros@0.1.0
         with: 
           required-ros-distributions: noetic
 
