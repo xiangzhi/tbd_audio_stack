@@ -1,8 +1,10 @@
 # Change log
 
-## [0.2.2] - 2021-01-28
+
+## [0.2.2] - 2021-02-01
 - **[Changed]** AWS Transcribe now use the provided SDK and speed up the recognition.
 - **[Changed]** Now you can set the custom vocabulary used in AWS Transcribe. Using the custom vocabulary will make it slower.
+- **[Fixed]** Cut out extra loops in the code.
 
 ## [0.2.1] - 2020-12-01
 - **[Changed]** AWS Transcribe now uses websocket.

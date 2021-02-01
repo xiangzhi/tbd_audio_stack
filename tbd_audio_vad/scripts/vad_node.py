@@ -15,7 +15,7 @@ class WebRTCVadNode:
     def __init__(self):
         self._vad = webrtcvad.Vad()
 
-        self._aggressiveness = rospy.get_param('~aggressiveness', 2)
+        self._aggressiveness = rospy.get_param('~aggressiveness', 3)
         self._vad.set_mode(self._aggressiveness)
 
         self._sample_rate = rospy.get_param('~sample_rate', 16000)
