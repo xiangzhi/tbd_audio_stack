@@ -23,8 +23,8 @@ class FilterNode:
 
     def __init__(self):
 
-        self._min_freq = 0
-        self._max_freq = 500
+        self._min_freq = rospy.get_param('~min_freq', 0)
+        self._max_freq = rospy.get_param('~max_freq', 500)
 
         self._sample_rate = rospy.get_param('~sample_rate', 16000)
         self._frame_duration = rospy.get_param('~frame_duration', .010) #10 ms
@@ -35,27 +35,22 @@ class FilterNode:
         self._signal_pub = rospy.Publisher('filterStamped', FilterStamped, queue_size=5) 
         rospy.Subscriber('audioStamped', AudioDataStamped, self._audio_cb, queue_size=5)
 
-        self.counter = 0
-        self.audio = np.array([])
-
     def _audio_cb(self, msg):
 
+        # convert the audio to numpy array
         audio_data = msg.data
         audio_data_numpy = np.frombuffer(audio_data, dtype=np.int16)
+
+        # get the fft
         audio_data_fft = fft(audio_data_numpy)
 
-        # print(np.max(audio_data_numpy))
-
-        # self.audio = np.append(self.audio, audio_data_numpy)
-
-        # if self.counter % 10 == 0:
-
-        # print(len(audio_data_fft))
+        # 0 out the parts of the fft using bandpass filter
         audio_data_fft[0 : self._min_freq_scaled] = 0
         audio_data_fft[self._max_freq_scaled : 80] = 0
         audio_data_fft[80 : 160 - self._max_freq_scaled] = 0
         audio_data_fft[160 - self._min_freq_scaled : 160] = 0
 
+        # create the fittered wave to send to the vad
         audio_data_numpy_new = ifft(audio_data_fft).astype('int16')
         audio_data_filtered = audio_data_numpy_new.tobytes()
             
@@ -86,9 +81,9 @@ class FilterNode:
         # # display the plot
         # plt.show()
 
+        # create the message with the filtered audio to be sent to the VAD
         response = FilterStamped()
         response.header = msg.header
-        # TODO Put fill in the message fields here, audio transfers over directly + if filter output
         response.filtered_data = audio_data_filtered
         self._signal_pub.publish(response)
 
