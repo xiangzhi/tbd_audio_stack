@@ -1,10 +1,12 @@
 <launch>
-    <arg name="output" default="screen"/>
+    <arg name="output" 				default="screen"/>
+	<arg name="custom_vocabulary" 	default="tbd-podi" />
 
 	<node name="audio_converter" pkg="tbd_audio_capture" type="converter_node.py" output="$(arg output)"/>
+	<node name="audio_filter" pkg="tbd_audio_vad" type="filter_node.py" output="$(arg output)" />
 	<node name="audio_vad" pkg="tbd_audio_vad" type="vad_node.py" output="$(arg output)"/>
 	<node name="audio_recognition" pkg="tbd_amazon_transcribe" type="recognition_node.py" output="$(arg output)">
-
+		<param name="custom_vocabulary" value="$(arg custom_vocabulary)" />
 	</node>
     <include file="$(find audio_capture)/launch/capture_wave.launch" />
 </launch>

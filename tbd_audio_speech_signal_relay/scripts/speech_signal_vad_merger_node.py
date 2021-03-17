@@ -12,7 +12,7 @@ def main():
 
     THRESHOLD = 0.15
     last_speech_signal = None
-    con_pub = rospy.Publisher('vad_out', VADStamped)
+    con_pub = rospy.Publisher('vad_out', VADStamped, queue_size=1)
 
     def signal_cb(msg: Bool):
         if (msg.data):
@@ -24,8 +24,8 @@ def main():
             msg.is_speech = False
         con_pub.publish(msg)
 
-    rospy.Subscriber('vad',VADStamped,vad_cb)
-    rospy.Subscriber('speak_signal', Bool, signal_cb)
+    rospy.Subscriber('vad',VADStamped,vad_cb, queue_size=1)
+    rospy.Subscriber('speak_signal', Bool, signal_cb, queue_size=1)
 
     rospy.spin()
 

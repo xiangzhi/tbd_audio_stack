@@ -2,6 +2,7 @@
     <arg name="output" default="screen"/>
     <arg name="model_path" default="$(find tbd_audio_recognition_deepspeech)/models/deepspeech-0.8.1-models.pbmm"/>
     <arg name="scorer_path" default="$(find tbd_audio_recognition_deepspeech)/models/deepspeech-0.8.1-models.scorer"/>
+	<arg name="agent_signal_topic_name" default="speak_signal" />
 
 
 	<node name="audio_converter" pkg="tbd_audio_capture" type="converter_node.py" output="$(arg output)"/>
@@ -10,6 +11,7 @@
 	</node>
 	<node name="vad_signal_merger" pkg="tbd_audio_speech_signal_relay" type="speech_signal_vad_merger_node.py" output="$(arg output)">
 		<remap from="vad" to="vad_in"/>
+		<remap from="speak_signal" to="$(arg agent_signal_topic_name)" />
 	</node>
 	<node name="audio_recognition" pkg="tbd_audio_recognition_deepspeech" type="recognition_node.py" output="$(arg output)">
 		<remap from="vad" to="vad_out"/>

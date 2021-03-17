@@ -1,5 +1,7 @@
 <launch>
-    <arg name="output" default="screen"/>
+    <arg name="output" 					default="screen"/>
+	<arg name="agent_signal_topic_name" default="speak_signal" />
+	<arg name="custom_vocabulary" 		default="tbd-podi" />
 
 	<node name="audio_converter" pkg="tbd_audio_capture" type="converter_node.py" output="$(arg output)"/>
 	<node name="audio_vad" pkg="tbd_audio_vad" type="vad_node.py" output="$(arg output)">
@@ -7,8 +9,10 @@
 	</node>
 	<node name="vad_signal_merger" pkg="tbd_audio_speech_signal_relay" type="speech_signal_vad_merger_node.py" output="$(arg output)">
 		<remap from="vad" to="vad_in"/>
+		<remap from="speak_signal" to="$(arg agent_signal_topic_name)" />
 	</node>
     <node name="audio_recognition" pkg="tbd_amazon_transcribe" type="recognition_node.py" output="$(arg output)">
+		<param name="custom_vocabulary" value="$(arg custom_vocabulary)" />
 		<remap from="vad" to="vad_out"/>
 	</node>    
 	<include file="$(find audio_capture)/launch/capture_wave.launch" />
