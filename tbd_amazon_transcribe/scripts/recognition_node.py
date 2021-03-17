@@ -121,7 +121,7 @@ class AWSTranscribeRecognitionNode(object):
             try:
                 msg = self._message_queue.get(timeout=0.1)
                 yield msg
-            except Queue.Empty as e:
+            except queue.Empty as e:
                 pass
         raise rospy.ROSInterruptException("ROS Shutting")
 
