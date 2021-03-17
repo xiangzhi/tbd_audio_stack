@@ -24,7 +24,7 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       - name: Setup ROS
-        uses: ros-tooling/setup-ros@0.1.0
+        uses: ros-tooling/setup-ros@0.1.1
         with: 
           required-ros-distributions: noetic
 
@@ -42,7 +42,6 @@ jobs:
 
       - name: Install dependencies
         run: |
-          rosdep init
           rosdep update
           rosdep install --from-paths src --ignore-src -y
 
@@ -50,4 +49,4 @@ jobs:
         run: |
           source /opt/ros/${{matrix.ros_distributions}}/setup.bash
           cd ros_ws
-          catkin_make_isolated
+          catkin build
