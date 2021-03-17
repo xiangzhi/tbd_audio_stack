@@ -51,7 +51,6 @@ add_message_files(
   VADStamped.msg
   Utterance.msg
   AudioDataStamped.msg
-  FilterStamped.msg
 )
 
 ## Generate services in the 'srv' folder

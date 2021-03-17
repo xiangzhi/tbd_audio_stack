@@ -1,5 +1,7 @@
 # Change log
 
+## [0.3.0] - 2021-03-17
+- **[Added]** Audio filter that filters out audio for better and more sensitive VAD.
 
 ## [0.2.2] - 2021-02-01
 - **[Changed]** AWS Transcribe now use the provided SDK and speed up the recognition.

@@ -42,6 +42,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          cd ros_ws
           rosdep update
           rosdep install --from-paths src --ignore-src -y
 
