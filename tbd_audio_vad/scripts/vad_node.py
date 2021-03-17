@@ -22,8 +22,8 @@ class WebRTCVadNode:
         self._frame_duration = rospy.get_param('~frame_duration', 10)
 
         self._signal_pub = rospy.Publisher('vad', VADStamped, queue_size=5) 
-        rospy.Subscriber('filterStamped', AudioDataStamped, self._audio_cb, queue_size=5)
-cd ros_ws
+        rospy.Subscriber('filteredAudioStamped', AudioDataStamped, self._audio_cb, queue_size=5)
+
     def _audio_cb(self, msg):
 
         audio_data = msg.data

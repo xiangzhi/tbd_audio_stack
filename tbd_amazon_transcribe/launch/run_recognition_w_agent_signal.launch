@@ -4,6 +4,7 @@
 	<arg name="custom_vocabulary" 		default="tbd-podi" />
 
 	<node name="audio_converter" pkg="tbd_audio_capture" type="converter_node.py" output="$(arg output)"/>
+	<node name="audio_filter" pkg="tbd_audio_vad" type="filter_node.py" output="$(arg output)" />
 	<node name="audio_vad" pkg="tbd_audio_vad" type="vad_node.py" output="$(arg output)">
 		<remap from="vad" to="vad_in"/>
 	</node>

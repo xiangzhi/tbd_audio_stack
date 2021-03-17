@@ -4,7 +4,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.io import wavfile
 from scipy.fft import rfft, rfftfreq, irfft, fft, ifft, fftfreq
-cd ros_ws
 import rospy
 from std_msgs.msg import (
     Bool
@@ -26,7 +25,7 @@ class FilterNode:
         self._min_freq_scaled = int(self._min_freq * self._frame_duration)
         self._max_freq_scaled = int(self._max_freq * self._frame_duration)
 
-        self._signal_pub = rospy.Publisher('filterStamped', AudioDataStamped, queue_size=5) 
+        self._signal_pub = rospy.Publisher('filteredAudioStamped', AudioDataStamped, queue_size=5) 
         rospy.Subscriber('audioStamped', AudioDataStamped, self._audio_cb, queue_size=5)
 
     def _audio_cb(self, msg):

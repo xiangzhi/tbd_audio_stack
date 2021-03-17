@@ -43,6 +43,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd ros_ws
+          source /opt/ros/${{matrix.ros_distributions}}/setup.bash
           rosdep update
           rosdep install --from-paths src --ignore-src -y
 
