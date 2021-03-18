@@ -76,7 +76,7 @@ class AWSTranscribeRecognitionNode(object):
         # queue to hold the audio chunks
         self._message_queue = queue.Queue(maxsize=int(self._transcribe_start_value_length_in_ms/10) + 10)
 
-        self._pub = rospy.Publisher('/utterance', Utterance, queue_size=1)
+        self._pub = rospy.Publisher('utterance', Utterance, queue_size=1)
 
         # merge the audio & vad signal
         self._audio_sub = message_filters.Subscriber(

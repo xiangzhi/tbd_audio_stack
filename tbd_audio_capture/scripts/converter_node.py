@@ -12,7 +12,7 @@ class WebRTCVadNode:
 
     def __init__(self):
 
-        self._audio_topic_name = rospy.get_param('~audio_topic_name', '/audio')
+        self._audio_topic_name = rospy.get_param('~audio_topic_name', 'audio')
 
         self._pub = rospy.Publisher('audioStamped', AudioDataStamped, queue_size=5) 
         rospy.Subscriber(self._audio_topic_name, AudioData, self._audio_cb, queue_size=5)
