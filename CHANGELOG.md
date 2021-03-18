@@ -1,5 +1,8 @@
 # Change log
 
+## [0.3.1] - 2021-03-18
+- **[Changed]** topic names to be not static.
+
 ## [0.3.0] - 2021-03-17
 - **[Added]** Audio filter that filters out audio for better and more sensitive VAD.
 
