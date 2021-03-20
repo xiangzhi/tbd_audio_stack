@@ -51,4 +51,4 @@ jobs:
         run: |
           source /opt/ros/${{matrix.ros_distributions}}/setup.bash
           cd ros_ws
-          catkin build
+          catkin_make_isolated
