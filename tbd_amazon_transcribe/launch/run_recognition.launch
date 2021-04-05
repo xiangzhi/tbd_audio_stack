@@ -1,6 +1,6 @@
 <launch>
     <arg name="output" 				default="screen"/>
-	<arg name="custom_vocabulary" 	default="tbd-podi" />
+	<arg name="custom_vocabulary" 	default="" />
 
 	<node name="audio_converter" pkg="tbd_audio_capture" type="converter_node.py" output="$(arg output)"/>
 	<node name="audio_filter" pkg="tbd_audio_vad" type="filter_node.py" output="$(arg output)" />
