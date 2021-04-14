@@ -1,5 +1,8 @@
 # Change log
 
+## [0.3.2] - 2021-04-13
+- **[Added]** pass the audio topic to different levels.
+
 ## [0.3.1] - 2021-03-18
 - **[Changed]** topic names to be not static.
 

@@ -1,9 +1,12 @@
 <launch>
+	<arg name="audio_topic"				default="audio"/>
     <arg name="output" 					default="screen"/>
 	<arg name="agent_signal_topic_name" default="speak_signal" />
 	<arg name="custom_vocabulary" 		default="tbd-podi" />
 
-	<node name="audio_converter" pkg="tbd_audio_capture" type="converter_node.py" output="$(arg output)"/>
+	<node name="audio_converter" pkg="tbd_audio_capture" type="converter_node.py" output="$(arg output)">
+		<remap from="audio" to="$(arg audio_topic)" />
+	</node>	
 	<node name="audio_filter" pkg="tbd_audio_vad" type="filter_node.py" output="$(arg output)" />
 	<node name="audio_vad" pkg="tbd_audio_vad" type="vad_node.py" output="$(arg output)">
 		<remap from="vad" to="vad_in"/>
