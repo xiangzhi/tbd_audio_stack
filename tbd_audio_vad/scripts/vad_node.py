@@ -23,9 +23,9 @@ class WebRTCVadNode:
 
         self._signal_pub = rospy.Publisher('vad', VADStamped, queue_size=5) 
         rospy.Subscriber('filteredAudioStamped', AudioDataStamped, self._audio_cb, queue_size=5)
+        rospy.loginfo(f"{rospy.get_name()} started.")
 
     def _audio_cb(self, msg):
-
         audio_data = msg.data
         result = self._vad.is_speech(audio_data, self._sample_rate)
 
@@ -38,3 +38,4 @@ if __name__ == '__main__':
     rospy.init_node("vad_node")
     vad = WebRTCVadNode()
     rospy.spin()
+

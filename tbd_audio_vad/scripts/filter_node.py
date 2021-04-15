@@ -44,7 +44,7 @@ class FilterNode:
         audio_data_fft[160 - self._min_freq_scaled : 160] = 0
 
         # create the fittered wave to send to the vad
-        audio_data_numpy_new = ifft(audio_data_fft).astype('int16')
+        audio_data_numpy_new = np.real(ifft(audio_data_fft)).astype('int16')
         audio_data_filtered = audio_data_numpy_new.tobytes()
 
         # create the message with the filtered audio to be sent to the VAD
