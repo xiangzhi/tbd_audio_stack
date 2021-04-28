@@ -51,7 +51,9 @@ class FilterNode:
         response = AudioDataStamped()
         response.header = msg.header
         response.data = audio_data_filtered
-        self._signal_pub.publish(response)
+        # Add check for more graceful shutdown and don't publish if at the end.
+        if not rospy.is_shutdown():
+            self._signal_pub.publish(response)
 
 if __name__ == '__main__':
     rospy.init_node("filter_node")
