@@ -1,5 +1,8 @@
 # Change log
 
+## [0.3.3] - 2021-04-27
+- **[Fixed]** Fixed bugs in Amazon transcribe that didn't set the time for message.
+
 ## [0.3.2] - 2021-04-13
 - **[Added]** pass the audio topic to different levels.
 

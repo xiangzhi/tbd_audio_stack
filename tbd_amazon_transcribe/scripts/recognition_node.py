@@ -40,9 +40,9 @@ class SpeechEventHandler(TranscriptResultStreamHandler):
                     rospy.loginfo(f"result:{self.transcript}")
 
                     resp = Utterance()
-                    #resp.header.stamp = self._caller.msg_start_time
+                    resp.header.stamp = self._caller.msg_start_time
                     resp.text = self.transcript
-                    #resp.end_time = self._caller.msg_end_time
+                    resp.end_time = self._caller.msg_end_time
                     self._pub.publish(resp)
                     
             
@@ -134,8 +134,8 @@ class AWSTranscribeRecognitionNode(object):
             audio = chunk[0].data
             vad = chunk[1].is_speech
 
-            if started:
-                # loop through if vad is false on the queue
+            # ignore all audio chunks in the audio stream that has a false VAD
+            if not started:
                 if not vad:
                     continue
                 self.msg_start_time = chunk[1].header.stamp
