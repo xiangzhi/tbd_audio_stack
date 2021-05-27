@@ -2,9 +2,6 @@
 
 import asyncio
 import queue
-import collections
-import sys
-import time
 import threading
 
 from amazon_transcribe.client import TranscribeStreamingClient
@@ -44,8 +41,6 @@ class SpeechEventHandler(TranscriptResultStreamHandler):
                     resp.text = self.transcript
                     resp.end_time = self._caller.msg_end_time
                     self._pub.publish(resp)
-                    
-            
 
 
 class AWSTranscribeRecognitionNode(object):
@@ -54,14 +49,14 @@ class AWSTranscribeRecognitionNode(object):
         self._speaking = False
         self._stream = None
 
-        self._custom_vocabulary = rospy.get_param("~custom_vocabulary", default=None) 
+        self._custom_vocabulary = rospy.get_param("~custom_vocabulary", default=None)
         if (self._custom_vocabulary == "None" or self._custom_vocabulary == ""):
             self._custom_vocabulary = None
         rospy.logdebug(f"using custom vocabulary:{self._custom_vocabulary}")
 
         self._vad_buffer_size = 25
-        self._vad_buffer = [None for i in range(0,self._vad_buffer_size)]
-        self._transcribe_ratio = 0.8 
+        self._vad_buffer = [None for i in range(0, self._vad_buffer_size)]
+        self._transcribe_ratio = 0.8
 
         self._start_transcribe_flag = threading.Event()
         self._stop_transcribe_flag = threading.Event()
@@ -97,7 +92,7 @@ class AWSTranscribeRecognitionNode(object):
         if (self._message_queue.qsize() >= self._message_queue.maxsize):
             self._message_queue.get()
         self._message_queue.put((audio, vad))
-        
+
         # add vad_buffer to length
         self._vad_buffer.pop(0)
         self._vad_buffer.append(vad.is_speech)
@@ -112,8 +107,6 @@ class AWSTranscribeRecognitionNode(object):
             self._start_transcribe_flag.clear()
             self._stop_transcribe_flag.set()
 
-
-
     async def audio_stream(self):
         # wraps incoming audio stream into async
 
@@ -121,16 +114,15 @@ class AWSTranscribeRecognitionNode(object):
             try:
                 msg = self._message_queue.get(timeout=0.1)
                 yield msg
-            except queue.Empty as e:
+            except queue.Empty:
                 pass
         raise rospy.ROSInterruptException("ROS Shutting")
 
-            
     async def _write_chunks(self, stream):
 
         started = False
         async for chunk in self.audio_stream():
-            
+
             audio = chunk[0].data
             vad = chunk[1].is_speech
 
@@ -139,17 +131,19 @@ class AWSTranscribeRecognitionNode(object):
                 if not vad:
                     continue
                 self.msg_start_time = chunk[1].header.stamp
+                self.msg_end_time = chunk[1].header.stamp
                 started = True
-            
+
             # end if VAD is loser
             if self._stop_transcribe_flag.is_set():
                 # The end time here is an estimate
                 self.msg_end_time = chunk[1].header.stamp
                 await stream.input_stream.end_stream()
-                return 
+                return
 
-            await stream.input_stream.send_audio_event(audio_chunk=audio) 
+            self.msg_end_time = chunk[1].header.stamp
 
+            await stream.input_stream.send_audio_event(audio_chunk=audio)
 
     async def _run_transcribe(self):
 
@@ -173,7 +167,6 @@ class AWSTranscribeRecognitionNode(object):
                 self._start_transcribe_flag.clear()
                 rospy.logdebug(f"Transcribe Time:{(rospy.Time.now() - start_time).to_sec()}")
 
-    
 
 if __name__ == '__main__':
     rospy.init_node("recognition_node", log_level=rospy.DEBUG)

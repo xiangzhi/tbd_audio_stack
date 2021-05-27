@@ -1,5 +1,9 @@
 # Change log
 
+## [0.3.4] - 2021-05-27
+- **[Fixed]** Fixed bugs in Amazon transcribe that didn't set the end time for message.
+- **[Changed]** Code cleanup.
+
 ## [0.3.3] - 2021-04-27
 - **[Fixed]** Fixed bugs in Amazon transcribe that didn't set the time for message.
 - **[Fixed]** More graceful shutdown for filter node.
