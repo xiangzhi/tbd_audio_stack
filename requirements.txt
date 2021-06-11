@@ -2,4 +2,4 @@ amazon-transcribe==0.1.0
 webrtcvad==2.0.10
 deepspeech==0.8.2
 boto3==1.16.26
-websockets==8.1
+websockets==9.1
