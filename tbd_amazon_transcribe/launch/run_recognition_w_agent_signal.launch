@@ -2,6 +2,7 @@
 	<arg name="external_audio_topic"	default="audio"/>
 	<arg name="audio_source"			default="internal"/>
     <arg name="output" 					default="screen"/>
+	<arg name="additional_signal_args"	default="" />
 	<arg name="agent_signal_topic_name" default="speak_signal" />
 	<arg name="custom_vocabulary" 		default="tbd-podi" />
 
@@ -14,9 +15,8 @@
 	<node name="audio_vad" pkg="tbd_audio_vad" type="vad_node.py" output="$(arg output)">
 		<remap from="vad" to="vad_in"/>
 	</node>
-	<node name="vad_signal_merger" pkg="tbd_audio_speech_signal_relay" type="speech_signal_vad_merger_node.py" output="$(arg output)">
+	<node name="vad_signal_merger" pkg="tbd_audio_speech_signal_relay" type="speech_signal_vad_merger_node.py" args="$(arg agent_signal_topic_name) $(arg additional_signal_args)" output="$(arg output)">
 		<remap from="vad" to="vad_in"/>
-		<remap from="speak_signal" to="$(arg agent_signal_topic_name)" />
 	</node>
     <node name="audio_recognition" pkg="tbd_amazon_transcribe" type="recognition_node.py" output="$(arg output)">
 		<param name="custom_vocabulary" value="$(arg custom_vocabulary)" />
