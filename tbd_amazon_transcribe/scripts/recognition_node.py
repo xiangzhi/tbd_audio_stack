@@ -169,6 +169,6 @@ class AWSTranscribeRecognitionNode(object):
 
 
 if __name__ == '__main__':
-    rospy.init_node("recognition_node", log_level=rospy.DEBUG)
+    rospy.init_node("recognition_node")
     node = AWSTranscribeRecognitionNode()
     rospy.spin()

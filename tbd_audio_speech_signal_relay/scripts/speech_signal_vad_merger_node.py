@@ -2,7 +2,6 @@
 
 import sys
 import rospy
-import message_filters
 from std_msgs.msg import Bool
 from tbd_audio_msgs.msg import VADStamped
 
